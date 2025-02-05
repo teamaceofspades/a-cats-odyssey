@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 2b6659f56991aed418e3ece56f7b9e2f
+guid: 1c26caee9074c594b97e2e7f8b8e659f
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
@@ -24,6 +24,11 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: Glass
     second: {fileID: 2100000, guid: e29a372fbf315e24b9c85bf864a0f87d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Glass Pane
+    second: {fileID: 2100000, guid: e089b92331c63684b8586ae25c959e8d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
