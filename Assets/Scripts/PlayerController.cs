@@ -55,6 +55,8 @@ public class PlayerController : MonoBehaviour
 
   // UI
   public TextMeshProUGUI InteractTextMeshPro;
+  public GameObject PausePanel;
+  public Texture2D MouseTexture;
 
   // Cameras
   public Camera MainCamera;
@@ -78,7 +80,8 @@ public class PlayerController : MonoBehaviour
 
   void Start()
   {
-    Cursor.SetCursor(PlayerSettings.defaultCursor, new Vector2(0, 0), CursorMode.ForceSoftware);
+    Cursor.SetCursor(MouseTexture, new Vector2(0, 0), CursorMode.ForceSoftware);
+    Cursor.visible = false;
     Cursor.lockState = CursorLockMode.Locked;
     Body.SetActive(false);
     _player = GetComponent<CharacterController>();
@@ -95,7 +98,7 @@ public class PlayerController : MonoBehaviour
     _pi_sprint.started += StartedSprint;
     _pi_sprint.canceled += CanceledSprint;
     _pi_jump = playerInput.actions["Jump"];
-    FirstPersonCamera.Priority += _activeCameraPriorityModifier;
+    OnPauseMenu();
   }
 
   //private void AssignAnimationIDs()
@@ -339,11 +342,21 @@ public class PlayerController : MonoBehaviour
 
   public void OnPauseMenu()
   {
-    // Pause World
+    if (PausePanel.activeSelf)
+    {
+      PausePanel.GetComponent<PauseMenu>().OnUnpause();
+    }
+    else
+    {
+      PausePanel.GetComponent<PauseMenu>().Pause();
+    }
+  }
 
-    // Enable Menu GUI
-
-    // Unlock Cursor
-    Cursor.lockState = CursorLockMode.None;
+  public void OnInteract()
+  {
+    if (!PausePanel.activeSelf)
+    {
+      GetComponent<Interactor>().Interact();
+    }
   }
 }

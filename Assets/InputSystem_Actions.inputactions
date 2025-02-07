@@ -632,9 +632,9 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "UnpauseMenu",
+                    "name": "Unpause",
                     "type": "Button",
-                    "id": "49acc7d5-f828-4f76-be83-4c9756148d8f",
+                    "id": "62b87c38-ae16-4234-bdb4-c96d72c3a94c",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -1062,23 +1062,23 @@
                 },
                 {
                     "name": "",
-                    "id": "73ad1c8c-7a23-48a0-acdf-63bacc5002c9",
-                    "path": "<Gamepad>/start",
+                    "id": "ac17b790-e9cf-4dc2-af64-4d57032ec290",
+                    "path": "<Keyboard>/escape",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad;Touch;Joystick;XR",
-                    "action": "UnpauseMenu",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "Unpause",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
                 {
                     "name": "",
-                    "id": "cfdae277-27b2-42a5-b049-3a9fa83c8c2e",
-                    "path": "<Keyboard>/escape",
+                    "id": "5ed42181-f711-448d-9731-499106358e22",
+                    "path": "<Gamepad>/start",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Keyboard&Mouse",
-                    "action": "UnpauseMenu",
+                    "groups": ";Gamepad;Touch;Joystick;XR",
+                    "action": "Unpause",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

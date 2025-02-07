@@ -32,7 +32,7 @@ public class Interactor : MonoBehaviour
   }
 
 #nullable enable
-  public void OnInteract()
+  public void Interact()
   {
     IInteractable? interactable = CheckForInteract();
     if (interactable != null)
