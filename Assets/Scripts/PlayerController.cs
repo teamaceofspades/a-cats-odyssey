@@ -1,60 +1,44 @@
 using System;
-using Unity.VisualScripting;
+using TMPro;
+using Unity.Cinemachine;
+using UnityEditor;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-using UnityEngine.Windows;
-using static UnityEditor.Searcher.SearcherWindow.Alignment;
 
 public class PlayerController : MonoBehaviour
 {
-
+  // Movement
   [Header("Player")]
   [Tooltip("Move speed of the character in m/s")]
   public float MoveSpeed = 2.0f;
-
   [Tooltip("Sprint speed of the character in m/s")]
   public float SprintSpeed = 5.335f;
-
   [Tooltip("How fast the character turns to face movement direction")]
   [Range(0.0f, 0.3f)]
   public float RotationSmoothTime = 0.12f;
-
   [Tooltip("Acceleration and deceleration")]
   public float SpeedChangeRate = 10.0f;
-
   [Tooltip("Time required to pass before being able to jump again. Set to 0f to instantly jump again")]
   public float JumpTimeout = 0.0f;
-
   [Tooltip("The height the player can jump")]
   public float JumpHeight = 1.2f;
-
+  public float SprintJumpHeight = 1.2f;
   [Tooltip("The character uses its own gravity value. The engine default is -9.81f")]
   public float Gravity = -9.81f;
-
   [Tooltip("Time required to pass before entering the fall state. Useful for walking down stairs")]
   public float FallTimeout = 0.15f;
-
   [Header("Player Grounded")]
   [Tooltip("If the character is grounded or not. Not part of the CharacterController built in grounded check")]
   public bool Grounded = true;
-
   [Tooltip("Useful for rough ground")]
   public float GroundedOffset = -0.14f;
-
   [Tooltip("The radius of the grounded check. Should match the radius of the CharacterController")]
   public float GroundedRadius = 0.28f;
-
   [Tooltip("What layers the character uses as ground")]
   public LayerMask GroundLayers;
 
-  [Tooltip("Test for spawning items from plaayer.")]
-  public GameObject spawnableItem;
-
-  private Animator _animator;
-  private bool _hasAnimator;
-
   // player
+  public GameObject Body;
   private float _speed;
   private float _animationBlend;
   private float _targetRotation = 0.0f;
@@ -63,17 +47,29 @@ public class PlayerController : MonoBehaviour
   private readonly float _terminalVelocity = -53.0f;
   private bool _sprintWhileGrounded = false;
   private Vector2 _move;
-  public CharacterController player;
-  public Transform playerCamera;
+  private Interactor _playerInteractor;
+  private CharacterController _player;
   private PlayerInput playerInput;
   private InputAction _pi_sprint;
   private InputAction _pi_jump;
+
+  // UI
+  public TextMeshProUGUI InteractTextMeshPro;
+
+  // Cameras
+  public Camera MainCamera;
+  public CinemachineCamera ThirdPersonCamera;
+  public CinemachineCamera FirstPersonCamera;
+  private bool _switchedCamera = false;
+  private int _activeCameraPriorityModifier = 42069;
 
   // timeout deltatime
   private float _jumpTimeoutDelta;
   private float _fallTimeoutDelta;
 
-  // animation IDs
+  // animation
+  private Animator _animator;
+  private bool _hasAnimator;
   private int _animIDSpeed;
   private int _animIDGrounded;
   private int _animIDJump;
@@ -82,9 +78,13 @@ public class PlayerController : MonoBehaviour
 
   void Start()
   {
-    player = GetComponent<CharacterController>();
+    Cursor.SetCursor(PlayerSettings.defaultCursor, new Vector2(0, 0), CursorMode.ForceSoftware);
+    Cursor.lockState = CursorLockMode.Locked;
+    Body.SetActive(false);
+    _player = GetComponent<CharacterController>();
     _hasAnimator = TryGetComponent(out _animator);
-    GroundedRadius = player.radius;
+    _playerInteractor = GetComponent<Interactor>();
+    GroundedRadius = _player.radius - 0.02f;
     // reset our timeouts on start
     _jumpTimeoutDelta = JumpTimeout;
     _fallTimeoutDelta = FallTimeout;
@@ -92,9 +92,10 @@ public class PlayerController : MonoBehaviour
     // PlayerInputs to monitor
     playerInput = GetComponent<PlayerInput>();
     _pi_sprint = playerInput.actions["Sprint"];
-    _pi_sprint.started += startedSprint;
-    _pi_sprint.canceled += canceledSprint;
+    _pi_sprint.started += StartedSprint;
+    _pi_sprint.canceled += CanceledSprint;
     _pi_jump = playerInput.actions["Jump"];
+    FirstPersonCamera.Priority += _activeCameraPriorityModifier;
   }
 
   //private void AssignAnimationIDs()
@@ -115,6 +116,7 @@ public class PlayerController : MonoBehaviour
     JumpAndGravity();
     GroundedCheck();
     Move();
+    _playerInteractor.UpdateInteractTextUI(InteractTextMeshPro);
   }
 
   /// <summary>
@@ -164,7 +166,8 @@ public class PlayerController : MonoBehaviour
       if (_pi_jump.WasPressedThisFrame() && _jumpTimeoutDelta <= 0.0f)
       {
         // the square root of H * -2 * G = how much velocity needed to reach desired height
-        _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
+        _verticalVelocity = Mathf.Sqrt((_sprintWhileGrounded ? SprintJumpHeight : JumpHeight)
+          * -2f * Gravity);
 
         // update animator if using character
         if (_hasAnimator)
@@ -181,10 +184,17 @@ public class PlayerController : MonoBehaviour
     }
     else
     {
-      // short jump
-      if (_pi_jump.WasReleasedThisFrame() && _verticalVelocity > 0.0f)
+      if (_verticalVelocity > 0.0f)
       {
-        _verticalVelocity *= .5f;
+        if (_player.collisionFlags == CollisionFlags.Above)
+        {
+          _verticalVelocity = 0;
+        }
+        else if (_pi_jump.WasReleasedThisFrame())
+        {
+          // short jump
+          _verticalVelocity *= .5f;
+        }
       }
 
       // reset the jump timeout timer
@@ -231,8 +241,8 @@ public class PlayerController : MonoBehaviour
     if (_move == Vector2.zero) targetSpeed = 0.0f;
 
     // a reference to the players current horizontal velocity
-    float currentHorizontalSpeed = new Vector3(player.velocity.x, 0.0f,
-      player.velocity.z).magnitude;
+    float currentHorizontalSpeed = new Vector3(_player.velocity.x, 0.0f,
+      _player.velocity.z).magnitude;
 
     //float speedOffset = 0.1f;
 
@@ -265,7 +275,7 @@ public class PlayerController : MonoBehaviour
     if (_move != Vector2.zero)
     {
       _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
-                        playerCamera.transform.eulerAngles.y;
+                        MainCamera.transform.eulerAngles.y;
       float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation,
         ref _rotationVelocity, RotationSmoothTime);
 
@@ -277,7 +287,7 @@ public class PlayerController : MonoBehaviour
     Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
 
     // move the player
-    player.Move(targetDirection.normalized * (_speed * Time.deltaTime) +
+    _player.Move(targetDirection.normalized * (_speed * Time.deltaTime) +
                      new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 
     // update animator if using character
@@ -293,13 +303,47 @@ public class PlayerController : MonoBehaviour
     _move = value.Get<Vector2>();
   }
 
-  private void startedSprint(InputAction.CallbackContext context)
+  private void StartedSprint(InputAction.CallbackContext context)
   {
     _sprintWhileGrounded = Grounded;
   }
 
-  private void canceledSprint(InputAction.CallbackContext context)
+  private void CanceledSprint(InputAction.CallbackContext context)
   {
     _sprintWhileGrounded = false;
+  }
+
+  public void OnChangeCamera()
+  {
+    if (_switchedCamera)
+    {
+      //SetCameraPriority(FirstPersonCamera, ThirdPersonCamera);
+      SetCameraPriority(ThirdPersonCamera, FirstPersonCamera);
+      Body.gameObject.SetActive(false);
+      _switchedCamera = false;
+    }
+    else
+    {
+      SetCameraPriority(FirstPersonCamera, ThirdPersonCamera);
+      //SetCameraPriority(ThirdPersonCamera, FirstPersonCamera);
+      _switchedCamera = true;
+      Body.gameObject.SetActive(true);
+    }
+  }
+
+  private void SetCameraPriority(CinemachineCamera oldCamera, CinemachineCamera newCamera)
+  {
+    oldCamera.Priority -= _activeCameraPriorityModifier;
+    newCamera.Priority += _activeCameraPriorityModifier;
+  }
+
+  public void OnPauseMenu()
+  {
+    // Pause World
+
+    // Enable Menu GUI
+
+    // Unlock Cursor
+    Cursor.lockState = CursorLockMode.None;
   }
 }
