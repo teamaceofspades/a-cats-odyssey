@@ -143,6 +143,8 @@ public class PlayerController : MonoBehaviour
     VerifyProperties();
     _bounds = _capsule.bounds;
     _bounds.Expand(-2 * _skinWidth);
+    front = transform.TransformPoint(_capsule.center) + (transform.rotation * Vector3.forward * (-_capsule.height + _capsule.radius * 2) * 0.5f);
+    back = front + (transform.rotation * Vector3.forward * (_capsule.height - _capsule.radius * 2));
     Cursor.SetCursor(MouseTexture, new Vector2(0, 0), CursorMode.ForceSoftware);
     Cursor.visible = false;
     Cursor.lockState = CursorLockMode.Locked;
@@ -308,12 +310,16 @@ public class PlayerController : MonoBehaviour
     */
   }
 
+  public Vector3 front;
+  public Vector3 back;
+  Vector3 targetDirection;
   /// <summary>
   /// Update movement of player.<br/>
   /// Modified from the Unity Essentials Project 2025.
   /// </summary>
   private void Move()
   {
+    Quaternion qRotation = transform.rotation;
     // if there is no input, set the target speed to 0
     if (_move == Vector2.zero) { _targetSpeed = 0.0f; }
     else
@@ -327,13 +333,50 @@ public class PlayerController : MonoBehaviour
         ref _rotationVelocity, RotationSmoothTime);
 
       // rotate to face input direction relative to camera position
-      transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
+      qRotation = Quaternion.Euler(0.0f, rotation, 0.0f);
+      //transform.rotation = qRotation;
     }
     _speed = _targetSpeed;
-    Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
+    targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
     targetDirection = targetDirection.normalized * (_speed * Time.deltaTime) +
       new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime;
-    transform.position += CollideAndSlide(targetDirection, transform.position, 0, false, targetDirection);
+
+    // Front Center
+    Vector3 pos1 = transform.TransformPoint(_capsule.center) + (transform.rotation * Vector3.forward * (-_capsule.height + _capsule.radius * 2) * 0.5f);
+    // Back Center
+    Vector3 pos2 = pos1 + (transform.rotation * Vector3.forward * (_capsule.height - _capsule.radius * 2));
+    Vector3 frontDirection;
+    Vector3 backDirection;
+    if (_speed == 0.0f)
+    {
+      //transform.position += CollideAndSlide(targetDirection, transform.position, 0, false, targetDirection);
+    }
+    else
+    {
+      //targetDirection = Vector3.left * .1f;
+
+      // New rotation
+      frontDirection = qRotation * targetDirection;
+      // Old rotation
+      backDirection = transform.rotation * targetDirection;
+      // Difference of the rotations towards targetDirection
+      backDirection = Vector3.Project(frontDirection - backDirection, Vector3.Cross(transform.position + targetDirection, transform.up));
+      // Correct front and back Direction
+      frontDirection = targetDirection + backDirection;
+      backDirection = targetDirection - backDirection;
+      front += frontDirection;
+      back += backDirection;
+      frontDirection = CollideAndSlide(frontDirection, pos1, 0, false, frontDirection);
+      backDirection = CollideAndSlide(backDirection, pos2, 0, false, backDirection);
+      targetDirection.x = (frontDirection.x + backDirection.x) / 2;
+      targetDirection.y = (frontDirection.y + backDirection.y) / 2;
+      targetDirection.z = (frontDirection.z + backDirection.z) / 2;
+      transform.position += targetDirection;
+      transform.LookAt(transform.position + (frontDirection - backDirection));
+      Debug.Log($"Before P: {qRotation}\nT: {targetDirection}\nF: {frontDirection}\nB: {backDirection}");
+      //transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(frontDirection - backDirection), 360);
+      //transform.rotation *= Quaternion.FromToRotation(transform.forward, frontDirection - backDirection);
+    }
   }
 
   /// <summary>
@@ -358,26 +401,8 @@ public class PlayerController : MonoBehaviour
     }
 
     float dist = vel.magnitude + _skinWidth;
-    // Get the axis the capsule is aligned to
-    Vector3 front = new(0, 0, 0);
-    switch (_capsule.direction)
-    {
-      case 0:
-        front.x = 1;
-        break;
-      case 1:
-        front.y = 1;
-        break;
-      case 2:
-        front.z = 1;
-        break;
-    }
-    // Top Center
-    Vector3 pos1 = transform.position + _capsule.center + (front * (-_capsule.height + _capsule.radius * 2) * 0.5f);
-    // Bottom Center
-    Vector3 pos2 = pos1 + (front * (_capsule.height - _capsule.radius * 2));
 
-    if (Physics.CapsuleCast(pos1, pos2, _bounds.extents.x, vel.normalized, out RaycastHit hit, dist, LayerMask.GetMask("Ground", "Default")))
+    if (Physics.SphereCast(pos, _capsule.radius - _skinWidth, vel.normalized, out RaycastHit hit, dist, LayerMask.GetMask("Ground", "Default")))
     {
       // Distance to the collided surface
       Vector3 snapToSurface = vel.normalized * (hit.distance - _skinWidth);
@@ -429,28 +454,22 @@ public class PlayerController : MonoBehaviour
 
   private void OnDrawGizmos()
   {
-    // Get the axis the capsule is aligned to
-    Vector3 front = new(0, 0, 0);
-    switch (_capsule.direction)
-    {
-      case 0:
-        front.x = 1;
-        break;
-      case 1:
-        front.y = 1;
-        break;
-      case 2:
-        front.z = 1;
-        break;
-    }
     // Top Center
-    Vector3 pos1 = transform.position + _capsule.center + (front * (-_capsule.height + _capsule.radius * 2) * 0.5f);
+    Vector3 pos1 = transform.TransformPoint(_capsule.center) + (transform.rotation * Vector3.forward * (-_capsule.height + _capsule.radius * 2) * 0.5f);
     // Bottom Center
-    Vector3 pos2 = pos1 + (front * (_capsule.height - _capsule.radius * 2));
+    Vector3 pos2 = pos1 + (transform.rotation * Vector3.forward * (_capsule.height - _capsule.radius * 2));
     Gizmos.color = Color.yellow;
-    Gizmos.DrawWireSphere(pos1, _capsule.radius);
+    Gizmos.DrawWireSphere(front, _capsule.radius);
     Gizmos.color = Color.red;
-    Gizmos.DrawWireSphere(pos2, _capsule.radius);
+    Gizmos.DrawWireSphere(back, _capsule.radius);
+    Gizmos.color = Color.blue;
+    Gizmos.DrawWireSphere(transform.TransformPoint(_capsule.center), _capsule.height * 0.5f);
+    //Gizmos.color = Color.red;
+    //Gizmos.DrawLine(transform.TransformPoint(_capsule.center), transform.TransformPoint(_capsule.center) + transform.forward);
+    //Gizmos.color = Color.blue;
+    //Vector3 temp = Quaternion.AngleAxis(-30, Vector3.up) * (transform.TransformPoint(_capsule.center) + transform.forward);
+    //Gizmos.DrawLine(transform.TransformPoint(_capsule.center), temp);
+    //Gizmos.DrawLine(transform.TransformPoint(_capsule.center), temp - 2 * Vector3.Project(temp, Vector3.Cross(transform.position + transform.forward, transform.up)));
   }
   /// <summary>
   /// Transforms the vector perpendicular to the normal.
