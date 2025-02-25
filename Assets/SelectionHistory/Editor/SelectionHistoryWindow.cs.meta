@@ -9,3 +9,10 @@ MonoImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184204
+  packageName: Selection History
+  packageVersion: 1.0.0
+  assetPath: Assets/SelectionHistory/Editor/SelectionHistoryWindow.cs
+  uploadId: 448995
