@@ -2,6 +2,9 @@ using RealityWard.EventSystem;
 using UnityEngine;
 
 public class CameraEnabler : MonoBehaviour {
+  private void Awake() {
+    EnableChildCamera(false);
+  }
   public void EnableChildCamera(bool enable) {
     try {
       gameObject.GetComponentInChildren<Camera>(true).gameObject.SetActive(enable);

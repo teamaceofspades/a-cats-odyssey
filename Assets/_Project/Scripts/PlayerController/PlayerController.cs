@@ -9,6 +9,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using RealityWard.PlayerController;
+using UnityEngine.EventSystems;
 
 namespace RealityWard.PlayerController {
   public class PlayerController : ValidatedMonoBehaviour {

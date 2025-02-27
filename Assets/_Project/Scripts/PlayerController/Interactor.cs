@@ -75,8 +75,10 @@ namespace RealityWard.PlayerController {
 #nullable disable
 
     private void OnDrawGizmos() {
-      Gizmos.color = Color.yellow;
-      Gizmos.DrawWireSphere(_center.position, _radius);
+      if (enabled) {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(_center.position, _radius);
+      }
     }
   }
 }
