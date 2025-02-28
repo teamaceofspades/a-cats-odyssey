@@ -1,251 +1,268 @@
-using RealityWard.EventSystem;
-using KBCore.Refs;
-using NUnit.Framework;
-using RealityWard.StateMachineSystem;
 using System;
-using System.Collections.Generic;
-using Unity.Cinemachine;
-using Unity.Mathematics;
+using RealityWard.EventSystem;
+using RealityWard.StateMachineSystem;
+using RealityWard.Utilities.Helpers;
 using UnityEngine;
-using UnityEngine.InputSystem;
-using RealityWard.PlayerController;
-using UnityEngine.EventSystems;
 
 namespace RealityWard.PlayerController {
-  public class PlayerController : ValidatedMonoBehaviour {
+  [RequireComponent(typeof(PlayerMover))]
+  public class PlayerController : MonoBehaviour {
     #region Fields
-    [Header("References")]
-    [SerializeField, Self] Rigidbody _rb;
-    [SerializeField, Self] GroundChecker _groundChecker;
-    [SerializeField, Self] Animator _animator;
-    [SerializeField, Self] HealthEventModule _health;
-    [SerializeField, Anywhere] InputReader _input;
-    [SerializeField, Anywhere] CinemachineCamera _freeLookVCam;
-    [SerializeField, Anywhere] Transform _CameraTarget;
-    Transform _mainCam;
+    [SerializeField] InputReader _input;
 
-    [Header("Movement Settings")]
-    [SerializeField] float _moveSpeed = 300f;
-    public float MoveSpeed {
-      get { return _moveSpeed; }
-      set { if (value >= 0) _moveSpeed = value; }
-    }
-    float _moveSpeedMult = 1f;
-    public float MoveSpeedMult {
-      get { return _moveSpeedMult; }
-      set { if (value >= 0) _moveSpeedMult = value; }
-    }
-    [SerializeField] float _sprintSpeedMult = 1.5f;
-    public float SprintSpeedMult {
-      get { return _sprintSpeedMult; }
-      private set {
-        if (value > 0) _sprintSpeedMult = value;
-      }
-    }
-    [SerializeField] float _rotationSpeed = 400f;
-    [SerializeField] float _smoothTime = 0.2f;
-    Vector3 _movement;
-    float _currentSpeed;
-    float _velocity;
+    Transform _tr;
+    Animator _animator;
+    PlayerMover _mover;
+    CeilingDetector _ceilingDetector;
 
-    [Header("Jump Settings")]
-    [SerializeField] float _jumpForce = 10f;
-    [SerializeField] float _jumpDuration = 0.5f;
-    [SerializeField] float _jumpCooldown = 0f;
-    [SerializeField] float _jumpGravityMultiplier = 3f;
-    [SerializeField] float _terminalVelocity = 50f;
-    float _jumpVelocity;
+    bool _jumpKeyIsPressed => _input.InputActions.Player.Jump.IsPressed();
+    bool _jumpKeyWasPressed => _input.InputActions.Player.Jump.WasPressedThisFrame();
+    bool _jumpKeyWasLetGo => _input.InputActions.Player.Jump.WasReleasedThisFrame();
+    bool _jumpInputIsLocked;
 
-    [Header("Attack Settings")]
-    [SerializeField] float _attackCooldown = 0.5f;
-    [SerializeField] int _damageAmount = 10;
-    [SerializeField] float _attackDistance = 1f;
-
-    // Animator parameters
-    static readonly int _a_Speed = Animator.StringToHash("Speed");
-
-    List<Timer> _timers;
-    CountdownTimer _jumpTimer;
-    CountdownTimer _jumpCooldownTimer;
-    CountdownTimer _attackTimer;
+    public float MovementSpeed = 7f;
+    public float TurnSpeed = 50f;
+    public float AirControlRate = 2f;
+    public float JumpSpeed = 10f;
+    public float JumpDuration = 0.2f;
+    public float AirFriction = 0.5f;
+    public float GroundFriction = 100f;
+    public float Gravity = -30f;
+    public float SlideGravity = -5f;
+    public float SlopeLimit = 30f;
+    public bool UseLocalMomentum;
+    public float CurrentYRotation;
+    const float _fallOffAngle = 90f;
 
     StateMachine _stateMachine;
-    const float ZeroF = 0f;
+    CountdownTimer _jumpTimer;
+
+    [SerializeField] Transform _cameraTransform;
+
+    Vector3 _momentum, _savedVelocity, _savedMovementVelocity;
+
+    public event Action<Vector3> OnJump = delegate { };
+    public event Action<Vector3> OnLand = delegate { };
     #endregion
 
-    #region Object Initialization
-    private void Awake() {
-      _mainCam = Camera.main.transform;
-      _freeLookVCam.Follow = _CameraTarget;
-      _freeLookVCam.LookAt = _CameraTarget;
-      _freeLookVCam.OnTargetObjectWarped(_CameraTarget, _CameraTarget.position -
-        _freeLookVCam.transform.position - Vector3.forward);
+    bool IsGrounded() => _stateMachine.CurrentState is GroundedState or SlidingState;
+    public Vector3 GetVelocity() => _savedVelocity;
+    public Vector3 GetMomentum() => UseLocalMomentum ? _tr.localToWorldMatrix * _momentum : _momentum;
+    public Vector3 GetMovementVelocity() => _savedMovementVelocity;
 
-      _rb.freezeRotation = true;
+    void Awake() {
+      _tr = transform;
+      _mover = GetComponent<PlayerMover>();
+      _animator = GetComponent<Animator>();
+      _ceilingDetector = GetComponent<CeilingDetector>();
+      CurrentYRotation = _tr.localEulerAngles.y;
 
-      SetupTimers();
+      _jumpTimer = new CountdownTimer(JumpDuration);
       SetupStateMachine();
     }
 
-    private void Start() {
+    void Start() {
       _input.EnablePlayerActions();
+      _input.Jump += HandleJumpKeyInput;
     }
 
-    private void OnEnable() {
-      _input.Jump += OnJump;
-      _input.Attack += OnAttack;
+    void HandleJumpKeyInput(bool isButtonPressed) {
+      if (_jumpKeyIsPressed && !isButtonPressed) {
+        _jumpInputIsLocked = false;
+      }
     }
 
-    private void OnDisable() {
-      _input.Jump -= OnJump;
-      _input.Attack -= OnAttack;
-    }
-
-    private void SetupTimers() {
-      // Jump Timers
-      _jumpTimer = new(_jumpDuration);
-      _jumpCooldownTimer = new(_jumpCooldown);
-
-      _jumpTimer.OnTimerStart += () => _jumpVelocity = _jumpForce;
-      _jumpTimer.OnTimerStop += () => _jumpCooldownTimer.Start();
-      //Attack Timers
-      _attackTimer = new(_attackCooldown);
-
-      _timers = new List<Timer>(3) { _jumpTimer, _jumpCooldownTimer, _attackTimer };
-    }
-
-    private void SetupStateMachine() {
+    void SetupStateMachine() {
       _stateMachine = new StateMachine();
 
-      // Declare States
-      var locomotionState = new LocomotionState(this, _animator);
-      var jumpState = new JumpState(this, _animator);
-      var sprintState = new SprintState(this, _animator);
-      var attackState = new AttackState(this, _animator);
+      var grounded = new GroundedState(this, _animator);
+      var falling = new FallingState(this, _animator);
+      var sliding = new SlidingState(this, _animator);
+      var rising = new RisingState(this, _animator);
+      var jumping = new JumpingState(this, _animator);
 
-      // Define Transitions
-      At(locomotionState, jumpState, new FuncPredicate(() => _jumpTimer.IsRunning));
-      At(locomotionState, sprintState, new FuncPredicate(() => _input.IsSprintKeyPressed()));
-      At(sprintState, jumpState, new FuncPredicate(() => _jumpTimer.IsRunning));
-      At(locomotionState, attackState, new FuncPredicate(() => _attackTimer.IsRunning));
-      Any(locomotionState,
-        new FuncPredicate(ReturnToLocomotionState));
+      At(grounded, rising, () => IsRising());
+      At(grounded, sliding, () => _mover.IsGrounded() && IsGroundTooSteep());
+      At(grounded, falling, () => !_mover.IsGrounded());
+      At(grounded, jumping, () => (_jumpKeyIsPressed || _jumpKeyWasPressed) && !_jumpInputIsLocked);
 
+      At(falling, rising, () => IsRising());
+      At(falling, grounded, () => _mover.IsGrounded() && !IsGroundTooSteep());
+      At(falling, sliding, () => _mover.IsGrounded() && IsGroundTooSteep());
 
-      // Set initial state
-      _stateMachine.SetState(locomotionState);
+      At(sliding, rising, () => IsRising());
+      At(sliding, falling, () => !_mover.IsGrounded());
+      At(sliding, grounded, () => _mover.IsGrounded() && !IsGroundTooSteep());
+
+      At(rising, grounded, () => _mover.IsGrounded() && !IsGroundTooSteep());
+      At(rising, sliding, () => _mover.IsGrounded() && IsGroundTooSteep());
+      At(rising, falling, () => IsFalling());
+      At(rising, falling, () => _ceilingDetector != null && _ceilingDetector.HitCeiling());
+
+      At(jumping, rising, () => _jumpTimer.IsFinished || _jumpKeyWasLetGo);
+      At(jumping, falling, () => _ceilingDetector != null && _ceilingDetector.HitCeiling());
+
+      _stateMachine.SetState(falling);
     }
 
-    private bool ReturnToLocomotionState() {
-      return _groundChecker.IsGrounded
-        && !_attackTimer.IsRunning
-        && !_input.IsSprintKeyPressed()
-        && !_jumpTimer.IsRunning;
+    void At(IState from, IState to, Func<bool> condition) => _stateMachine.AddTransition(from, to, condition);
+    void Any<T>(IState to, Func<bool> condition) => _stateMachine.AddAnyTransition(to, condition);
+
+    bool IsRising() => VectorMath.GetDotProduct(GetMomentum(), _tr.up) > 0f;
+    bool IsFalling() => VectorMath.GetDotProduct(GetMomentum(), _tr.up) < 0f;
+    bool IsGroundTooSteep() => !_mover.IsGrounded() || Vector3.Angle(_mover.GetGroundNormal(), _tr.up) > SlopeLimit;
+
+    //void Update() => _stateMachine.Update();
+
+    void FixedUpdate() {
+      //_stateMachine.FixedUpdate();
+      _mover.CheckGroundAdjustment();
+      //HandleMomentum();
+      //Vector3 velocity = _stateMachine.CurrentState is GroundedState ? CalculateMovementVelocity() : Vector3.zero;
+      //velocity += UseLocalMomentum ? _tr.localToWorldMatrix * _momentum : _momentum;
+
+      //_mover.SetVelocity(velocity);
+      _mover.SetVelocity(Vector3.zero);
+
+      //_savedVelocity = velocity;
+      //_savedMovementVelocity = CalculateMovementVelocity();
+
+      //if (_ceilingDetector != null) _ceilingDetector.Reset();
     }
 
-    void At(IState from, IState to, IPredicate condition) => _stateMachine.AddTransition(from, to, condition);
-    void Any(IState to, IPredicate condition) => _stateMachine.AddAnyTransition(to, condition);
-    #endregion
-
-    #region Unity
-    private void Update() {
-      _movement = new Vector3(_input.Direction.x, 0f, _input.Direction.y);
-      _stateMachine.Update();
-      Timer.HandleTimers(_timers);
-      UpdateAnimator();
+    void LateUpdate() {
+      HandleRotation();
     }
 
-    private void UpdateAnimator() {
-      //_animator.SetFloat(_a_Speed, _currentSpeed);
+    Vector3 CalculateMovementVelocity() => CalculateMovementDirection() * MovementSpeed;
+
+    Vector3 CalculateMovementDirection() {
+      Vector3 direction = _cameraTransform == null
+          ? _tr.right * _input.Direction.x + _tr.forward * _input.Direction.y
+          : Vector3.ProjectOnPlane(_cameraTransform.right, _tr.up).normalized * _input.Direction.x +
+            Vector3.ProjectOnPlane(_cameraTransform.forward, _tr.up).normalized * _input.Direction.y;
+
+      return direction.magnitude > 1f ? direction.normalized : direction;
     }
 
-    private void FixedUpdate() {
-      _stateMachine.FixedUpdate();
-    }
-    #endregion
+    void HandleRotation() {
+      // Adjust the rotation to match the movement direction
+      Vector3 velocity = Vector3.ProjectOnPlane(GetMovementVelocity(), _tr.up);
+      if (velocity.magnitude < 0.001f) return;
 
-    #region Movement
-    public void HandleJump() {
-      // if not jumping and grounded, keep jump velocity at 0f
-      if (!_jumpTimer.IsRunning && _groundChecker.IsGrounded) {
-        _jumpVelocity = ZeroF;
-        return;
+      float angleDifference = VectorMath.GetAngle(_tr.forward, velocity.normalized, _tr.up);
+
+      float step = Mathf.Sign(angleDifference) *
+                   Mathf.InverseLerp(0f, _fallOffAngle, Mathf.Abs(angleDifference)) *
+                   Time.deltaTime * TurnSpeed;
+
+      CurrentYRotation += Mathf.Abs(step) > Mathf.Abs(angleDifference) ? angleDifference : step;
+
+      _tr.localRotation = Quaternion.Euler(0f, CurrentYRotation, 0f);
+    }
+
+    void HandleMomentum() {
+      if (UseLocalMomentum) _momentum = _tr.localToWorldMatrix * _momentum;
+
+      Vector3 verticalMomentum = VectorMath.ExtractDotVector(_momentum, _tr.up);
+      Vector3 horizontalMomentum = _momentum - verticalMomentum;
+
+      verticalMomentum -= _tr.up * (Gravity * Time.deltaTime);
+      if (_stateMachine.CurrentState is GroundedState && VectorMath.GetDotProduct(verticalMomentum, _tr.up) < 0f) {
+        verticalMomentum = Vector3.zero;
       }
-      // falling calc velocity
-      if (!_jumpTimer.IsRunning && _jumpVelocity < _terminalVelocity) {
-        // Gravity takes over
-        _jumpVelocity += Physics.gravity.y * _jumpGravityMultiplier * Time.fixedDeltaTime;
-        if (_jumpVelocity > _terminalVelocity) { _jumpVelocity = _terminalVelocity; }
+
+      if (!IsGrounded()) {
+        AdjustHorizontalMomentum(ref horizontalMomentum, CalculateMovementVelocity());
       }
 
-      // Apply velocity
-      _rb.linearVelocity = new Vector3(_rb.linearVelocity.x, _jumpVelocity, _rb.linearVelocity.z);
+      if (_stateMachine.CurrentState is SlidingState) {
+        HandleSliding(ref horizontalMomentum);
+      }
+
+      float friction = _stateMachine.CurrentState is GroundedState ? GroundFriction : AirFriction;
+      horizontalMomentum = Vector3.MoveTowards(horizontalMomentum, Vector3.zero, friction * Time.deltaTime);
+
+      _momentum = horizontalMomentum + verticalMomentum;
+
+      if (_stateMachine.CurrentState is JumpingState) {
+        HandleJumping();
+      }
+
+      if (_stateMachine.CurrentState is SlidingState) {
+        _momentum = Vector3.ProjectOnPlane(_momentum, _mover.GetGroundNormal());
+        if (VectorMath.GetDotProduct(_momentum, _tr.up) > 0f) {
+          _momentum = VectorMath.RemoveDotVector(_momentum, _tr.up);
+        }
+
+        Vector3 slideDirection = Vector3.ProjectOnPlane(-_tr.up, _mover.GetGroundNormal()).normalized;
+        _momentum += slideDirection * (SlideGravity * Time.deltaTime);
+      }
+
+      if (UseLocalMomentum) _momentum = _tr.worldToLocalMatrix * _momentum;
     }
 
-    public void HandleMovement() {
-      // rotate to match camera direction
-      Vector3 adjustedDirection = Quaternion.AngleAxis(_mainCam.eulerAngles.y,
-        Vector3.up) * _movement.normalized;
-      if (adjustedDirection.magnitude > ZeroF) {
-        HandleRotation(adjustedDirection);
-        HandleHorizontalMovement(adjustedDirection);
-        SmootSpeed(adjustedDirection.magnitude);
+    void HandleJumping() {
+      _momentum = VectorMath.RemoveDotVector(_momentum, _tr.up);
+      _momentum += _tr.up * JumpSpeed;
+    }
+
+    public void OnJumpStart() {
+      if (UseLocalMomentum) _momentum = _tr.localToWorldMatrix * _momentum;
+
+      _momentum += _tr.up * JumpSpeed;
+      _jumpTimer.Start();
+      _jumpInputIsLocked = true;
+      OnJump.Invoke(_momentum);
+
+      if (UseLocalMomentum) _momentum = _tr.worldToLocalMatrix * _momentum;
+    }
+
+    public void OnGroundContactLost() {
+      if (UseLocalMomentum) _momentum = _tr.localToWorldMatrix * _momentum;
+
+      Vector3 velocity = GetMovementVelocity();
+      if (velocity.sqrMagnitude >= 0f && _momentum.sqrMagnitude > 0f) {
+        Vector3 projectedMomentum = Vector3.Project(_momentum, velocity.normalized);
+        float dot = VectorMath.GetDotProduct(projectedMomentum.normalized, velocity.normalized);
+
+        if (projectedMomentum.sqrMagnitude >= velocity.sqrMagnitude && dot > 0f) velocity = Vector3.zero;
+        else if (dot > 0f) velocity -= projectedMomentum;
+      }
+      _momentum += velocity;
+
+      if (UseLocalMomentum) _momentum = _tr.worldToLocalMatrix * _momentum;
+    }
+
+    public void OnGroundContactRegained() {
+      Vector3 collisionVelocity = UseLocalMomentum ? _tr.localToWorldMatrix * _momentum : _momentum;
+      OnLand.Invoke(collisionVelocity);
+    }
+
+    public void OnFallStart() {
+      var currentUpMomemtum = VectorMath.ExtractDotVector(_momentum, _tr.up);
+      _momentum = VectorMath.RemoveDotVector(_momentum, _tr.up);
+      _momentum -= _tr.up * currentUpMomemtum.magnitude;
+    }
+
+    void AdjustHorizontalMomentum(ref Vector3 horizontalMomentum, Vector3 movementVelocity) {
+      if (horizontalMomentum.magnitude > MovementSpeed) {
+        if (VectorMath.GetDotProduct(movementVelocity, horizontalMomentum.normalized) > 0f) {
+          movementVelocity = VectorMath.RemoveDotVector(movementVelocity, horizontalMomentum.normalized);
+        }
+        horizontalMomentum += movementVelocity * (Time.deltaTime * AirControlRate * 0.25f);
       }
       else {
-        SmootSpeed(ZeroF);
-
-        // Snappy Stopping power
-        _rb.linearVelocity = new Vector3(ZeroF, _rb.linearVelocity.y, ZeroF);
+        horizontalMomentum += movementVelocity * (Time.deltaTime * AirControlRate);
+        horizontalMomentum = Vector3.ClampMagnitude(horizontalMomentum, MovementSpeed);
       }
     }
 
-    private void HandleHorizontalMovement(Vector3 adjustedDirection) {
-      // Move the player
-      Vector3 velocity = adjustedDirection * (_moveSpeed * _moveSpeedMult * Time.fixedDeltaTime);
-      _rb.linearVelocity = new Vector3(velocity.x, _rb.linearVelocity.y, velocity.z);
+    void HandleSliding(ref Vector3 horizontalMomentum) {
+      Vector3 pointDownVector = Vector3.ProjectOnPlane(_mover.GetGroundNormal(), _tr.up).normalized;
+      Vector3 movementVelocity = CalculateMovementVelocity();
+      movementVelocity = VectorMath.RemoveDotVector(movementVelocity, pointDownVector);
+      horizontalMomentum += movementVelocity * Time.fixedDeltaTime;
     }
-
-    private void HandleRotation(Vector3 adjustedDirection) {
-      // Adjust the rotation to match the movement direction
-      Quaternion targetRotation = Quaternion.LookRotation(adjustedDirection);
-      transform.rotation = Quaternion.RotateTowards(transform.rotation,
-        targetRotation, _rotationSpeed * Time.deltaTime);
-    }
-
-    void SmootSpeed(float value) {
-      _currentSpeed = Mathf.SmoothDamp(_currentSpeed, value,
-          ref _velocity, _smoothTime);
-    }
-    #endregion
-
-    #region Events
-    public void OnJump(bool performed) {
-      if (performed && !_jumpTimer.IsRunning && !_jumpCooldownTimer.IsRunning &&
-        _groundChecker.IsGrounded) {
-        _jumpTimer.Start();
-      }
-      else if (!performed && _jumpTimer.IsRunning) {
-        _jumpTimer.Stop();
-      }
-    }
-
-    private void OnAttack() {
-      if (!_attackTimer.IsRunning) {
-        _attackTimer.Start();
-      }
-    }
-
-    public void Attack() {
-      Vector3 attackPos = transform.position + transform.forward;
-      Collider[] hitEnemies = Physics.OverlapSphere(attackPos, _attackDistance);
-
-      foreach (var enemy in hitEnemies) {
-        Debug.Log(enemy.name);
-        if (enemy.CompareTag("Enemy")) {
-          enemy.gameObject.GetComponent<HealthEventModule>().TakeDamage(_damageAmount);
-        }
-      }
-    }
-    #endregion
   }
 }

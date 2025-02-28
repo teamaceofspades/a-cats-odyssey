@@ -67,12 +67,15 @@ namespace RealityWard.Utilities.SceneManagement {
 
     void EnableLoadingCanvas(bool enable = true) {
       _isLoading = enable;
-      _loadingCanvas.gameObject.SetActive(enable);
-      _loadingCamera.gameObject.SetActive(enable);
+      if (_loadingCanvas != null)
+        _loadingCanvas.gameObject.SetActive(enable);
+      if (_loadingCamera != null)
+        _loadingCamera.gameObject.SetActive(enable);
     }
 
     void EnableCamerasInScene(bool enable = true) {
-      _cameraEnableChannel?.Invoke(enable);
+      if (_cameraEnableChannel != null)
+        _cameraEnableChannel.Invoke(enable);
     }
   }
 }

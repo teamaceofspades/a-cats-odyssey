@@ -6,6 +6,7 @@ namespace RealityWard.StateMachineSystem {
     StateNode _current;
     Dictionary<Type, StateNode> _nodes = new();
     HashSet<ITransition> _anyTransitions = new();
+    public IState CurrentState => _current.State;
 
     public void Update() {
       var transition = GetTransition();
@@ -56,6 +57,14 @@ namespace RealityWard.StateMachineSystem {
       _anyTransitions.Add(new Transition(GetOrAddNode(to).State, condition));
     }
 
+    public void AddTransition(IState from, IState to, Func<bool> condition) {
+      GetOrAddNode(from).AddTransition(GetOrAddNode(to).State, condition);
+    }
+
+    public void AddAnyTransition(IState to, Func<bool> condition) {
+      _anyTransitions.Add(new Transition(GetOrAddNode(to).State, condition));
+    }
+
     StateNode GetOrAddNode(IState state) {
       var node = _nodes.GetValueOrDefault(state.GetType());
 
@@ -75,6 +84,9 @@ namespace RealityWard.StateMachineSystem {
         Transitions = new HashSet<ITransition>();
       }
       public void AddTransition(IState to, IPredicate condition) {
+        Transitions.Add(new Transition(to, condition));
+      }
+      public void AddTransition(IState to, Func<bool> condition) {
         Transitions.Add(new Transition(to, condition));
       }
     }

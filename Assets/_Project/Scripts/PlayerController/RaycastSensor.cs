@@ -4,7 +4,7 @@ using UnityEngine;
 namespace RealityWard.PlayerController {
   [Serializable]
   public class RaycastSensor {
-    public float MaxDistance = 2f;
+    public float TargetDistance = 2f;
     public float MinDistance = .1f;
     public float GroundedDistance = 2.05f;
     [SerializeField] Vector3 _localSpaceOrigin = Vector3.zero;
@@ -67,6 +67,10 @@ namespace RealityWard.PlayerController {
         CastDirection.Down => Vector3.down,
         _ => Vector3.one
       };
+    }
+
+    public void OnValidate() {
+      _localSpaceOrigin.x = 0;
     }
 
     public void DrawDebug() {

@@ -19,20 +19,17 @@ public class InputReader : ScriptableObject, IPlayerActions, IInputReader {
   public event UnityAction Attack = delegate { };
   public event UnityAction<RaycastHit> Click = delegate { };
 
-  public InputSystem_Actions _inputActions;
+  public InputSystem_Actions InputActions;
 
-  public bool IsJumpKeyPressed() => _inputActions.Player.Jump.IsPressed();
-  public bool IsSprintKeyPressed() => _inputActions.Player.Sprint.IsPressed();
-
-  public Vector2 Direction => _inputActions.Player.Move.ReadValue<Vector2>();
-  public Vector2 LookDirection => _inputActions.Player.Look.ReadValue<Vector2>();
+  public Vector2 Direction => InputActions.Player.Move.ReadValue<Vector2>();
+  public Vector2 LookDirection => InputActions.Player.Look.ReadValue<Vector2>();
 
   public void EnablePlayerActions() {
-    if (_inputActions == null) {
-      _inputActions = new InputSystem_Actions();
-      _inputActions.Player.SetCallbacks(this);
+    if (InputActions == null) {
+      InputActions = new InputSystem_Actions();
+      InputActions.Player.SetCallbacks(this);
     }
-    _inputActions.Enable();
+    InputActions.Enable();
   }
 
   public void OnMove(InputAction.CallbackContext context) {

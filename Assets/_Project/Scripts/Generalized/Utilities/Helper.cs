@@ -1,7 +1,6 @@
 using MEC;
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace RealityWard.Utilities.Helpers {
