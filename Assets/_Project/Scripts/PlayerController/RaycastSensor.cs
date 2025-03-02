@@ -4,11 +4,32 @@ using UnityEngine;
 namespace RealityWard.PlayerController {
   [Serializable]
   public class RaycastSensor {
-    public float TargetDistance = 2f;
-    public float MinDistance = .1f;
-    public float GroundedDistance = 2.05f;
     [SerializeField] Vector3 _localSpaceOrigin = Vector3.zero;
+    [SerializeField] float _minDistance = .1f;
+    [SerializeField] float _targetDistance = 1f;
+    [SerializeField] float _groundedDistance = 1.1f;
 
+    public float MinDistance {
+      get { return _minDistance; }
+      set {
+        if (value >= 0) _minDistance = value;
+        else _minDistance = 0;
+      }
+    }
+    public float TargetDistance {
+      get { return _targetDistance; }
+      set {
+        if (value >= _minDistance) _targetDistance = value;
+        else _targetDistance = _minDistance;
+      }
+    }
+    public float GroundedDistance {
+      get { return _groundedDistance; }
+      set {
+        if (value >= _targetDistance) _groundedDistance = value;
+        else _groundedDistance = _targetDistance;
+      }
+    }
     public Vector3 LocalSpaceOrigin { get { return _localSpaceOrigin; } }
     public Vector3 WorldSpaceOrigin { get; private set; }
 
@@ -71,6 +92,9 @@ namespace RealityWard.PlayerController {
 
     public void OnValidate() {
       _localSpaceOrigin.x = 0;
+      MinDistance = MinDistance;
+      TargetDistance = TargetDistance;
+      GroundedDistance = GroundedDistance;
     }
 
     public void DrawDebug() {
