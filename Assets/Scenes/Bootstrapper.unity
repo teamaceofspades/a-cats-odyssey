@@ -761,6 +761,12 @@ MonoBehaviour:
   _loadingCamera: {fileID: 554755680}
   _cameraEnableChannel: {fileID: 11400000, guid: 0e2d469d5561f2e4fb6c4b11b5fe60ab, type: 2}
   _sceneGroups:
+  - Name: Collider Test
+    Scenes:
+    - Name: Collider Test
+      SceneType: 0
+    - Name: GameplayHUD
+      SceneType: 3
   - Name: Main Menu
     Scenes:
     - Name: MainMenu

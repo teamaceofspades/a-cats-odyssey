@@ -1,5 +1,4 @@
-﻿using KBCore.Refs;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -49,21 +48,6 @@ namespace RealityWard.PlayerController {
 
     public void CheckGroundAdjustment() {
       Vector3 frontAdjustment, backAdjustment;
-      NewMethod(out frontAdjustment, out backAdjustment);
-
-      //Debug.Log(_backSensor.WorldSpaceOrigin);
-      //Debug.Log(backAdjustment);
-      //Debug.Log(_backSensor.WorldSpaceOrigin + backAdjustment);
-      //Debug.Log("\n\n\n\n");
-      Vector3 frontPoint = _frontSensor.LocalSpaceOrigin + frontAdjustment;
-      Vector3 backPoint = _backSensor.LocalSpaceOrigin + backAdjustment;
-      //Vector3 slide = CalcSlideVector();
-      _currentGroundAdjustmentVelocity = new Vector3(0,
-        (GetYInterceptForYZ(frontPoint, backPoint) - _sensorOffset) * 2, 0);
-      HandleXAxisRotation(frontPoint - backPoint);
-    }
-
-    private void NewMethod(out Vector3 frontAdjustment, out Vector3 backAdjustment) {
       if (_currentLayer != gameObject.layer) {
         RecalculateSensorLayerMask();
       }
@@ -73,9 +57,21 @@ namespace RealityWard.PlayerController {
 
       frontAdjustment = CheckSensorGroundAdjustment(_frontSensor);
       backAdjustment = CheckSensorGroundAdjustment(_backSensor);
-      Debug.DrawLine(_backSensor.WorldSpaceOrigin, _frontSensor.WorldSpaceOrigin, Color.red);
-      Debug.DrawLine((_backSensor.WorldSpaceOrigin + backAdjustment),
-        (_frontSensor.WorldSpaceOrigin + frontAdjustment), Color.green);
+
+      if (_isInDebugMode) {
+        Debug.DrawLine(_backSensor.WorldSpaceOrigin, _frontSensor.WorldSpaceOrigin, Color.red);
+        Debug.DrawLine((_backSensor.WorldSpaceOrigin + backAdjustment),
+          (_frontSensor.WorldSpaceOrigin + frontAdjustment), Color.green);
+      }
+
+      //Debug.Log(_backSensor.WorldSpaceOrigin);
+      //Debug.Log(backAdjustment);
+      //Debug.Log(_backSensor.WorldSpaceOrigin + backAdjustment);
+      //Debug.Log("\n\n\n\n");
+      //Vector3 slide = CalcSlideVector();
+      _currentGroundAdjustmentVelocity = new Vector3(0,
+        (GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin + frontAdjustment, _backSensor.LocalSpaceOrigin + backAdjustment) - _sensorOffset), 0);
+      HandleXAxisRotation((_frontSensor.WorldSpaceOrigin + frontAdjustment) - (_backSensor.WorldSpaceOrigin + backAdjustment));
     }
 
     //private Vector3 CalcSlideVector() {
@@ -92,16 +88,16 @@ namespace RealityWard.PlayerController {
       //Debug.Log(sensor.GetDirectionVector()
       //  * ((sensor.GetDistance() - sensor.TargetDistance)));
       //Debug.Log("\n\n\n\n");
-      return sensor.GetDirectionVector()
-        * ((sensor.GetDistance() - sensor.TargetDistance));
+      return (sensor.GetDistance() - sensor.TargetDistance)
+        * 0.9f * sensor.GetDirectionVector();
     }
 
     private void HandleXAxisRotation(Vector3 adjustedDirection) {
       // Adjust the rotation to match the movement direction
-      Quaternion targetRotation = Quaternion.LookRotation(adjustedDirection, Vector3.up);
-      Debug.DrawRay(_backSensor.WorldSpaceOrigin, targetRotation * _tr.forward);
-      transform.rotation = Quaternion.Slerp(transform.rotation,
-        targetRotation, .85f);
+      Quaternion targetRotation
+        = Quaternion.LookRotation(adjustedDirection, Vector3.up);
+      _rb.MoveRotation(Quaternion.Slerp(_rb.rotation,
+        targetRotation, .85f));
     }
 
     public bool IsGrounded() => _isGrounded;
@@ -144,40 +140,26 @@ namespace RealityWard.PlayerController {
     }
 
     void OnDrawGizmos() {
-      Gizmos.color = Color.blue;
-      Gizmos.DrawLine((_frontSensor.WorldSpaceOrigin),
-        (_frontSensor.WorldSpaceOrigin + Vector3.down * _frontSensor.GroundedDistance));
-      Gizmos.DrawLine((_backSensor.WorldSpaceOrigin),
-        (_backSensor.WorldSpaceOrigin + Vector3.down * _backSensor.GroundedDistance));
-      Gizmos.color = Color.red;
-      Gizmos.DrawSphere((_frontSensor.WorldSpaceOrigin + Vector3.down * _frontSensor.TargetDistance),
-        .005f);
-      Gizmos.DrawSphere((_backSensor.WorldSpaceOrigin + Vector3.down * _backSensor.TargetDistance),
-        .005f);
-      Gizmos.color = Color.green;
-      Gizmos.DrawSphere((_frontSensor.WorldSpaceOrigin + Vector3.down * _frontSensor.MinDistance),
-        .005f);
-      Gizmos.DrawSphere((_backSensor.WorldSpaceOrigin + Vector3.down * _backSensor.MinDistance),
-        .005f);
-
-      //Gizmos.color = Color.blue;
-      //Gizmos.DrawLine(transform.TransformPoint(_frontSensor.LocalSpaceOrigin),
-      //  transform.TransformPoint(_frontSensor.LocalSpaceOrigin + Vector3.down * _frontSensor.GroundedDistance));
-      //Gizmos.DrawLine(transform.TransformPoint(_backSensor.LocalSpaceOrigin),
-      //  transform.TransformPoint(_backSensor.LocalSpaceOrigin + Vector3.down * _backSensor.GroundedDistance));
-      //Gizmos.color = Color.red;
-      //Gizmos.DrawSphere(transform.TransformPoint(_frontSensor.LocalSpaceOrigin + Vector3.down * _frontSensor.TargetDistance),
-      //  .005f);
-      //Gizmos.DrawSphere(transform.TransformPoint(_backSensor.LocalSpaceOrigin + Vector3.down * _backSensor.TargetDistance),
-      //  .005f);
-      //Gizmos.color = Color.green;
-      //Gizmos.DrawSphere(transform.TransformPoint(_frontSensor.LocalSpaceOrigin + Vector3.down * _frontSensor.MinDistance),
-      //  .005f);
-      //Gizmos.DrawSphere(transform.TransformPoint(_backSensor.LocalSpaceOrigin + Vector3.down * _backSensor.MinDistance),
-      //  .005f);
-      Setup();
-      Vector3 frontAdjustment, backAdjustment;
-      //NewMethod(out frontAdjustment, out backAdjustment);
+      if (_isInDebugMode) {
+        // Show Cast length
+        Gizmos.color = Color.blue;
+        Gizmos.DrawLine(transform.TransformPoint(_frontSensor.LocalSpaceOrigin),
+          transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.GroundedDistance);
+        Gizmos.DrawLine(transform.TransformPoint(_backSensor.LocalSpaceOrigin),
+          transform.TransformPoint(_backSensor.LocalSpaceOrigin) + Vector3.down * _backSensor.GroundedDistance);
+        // Show Target distance
+        Gizmos.color = Color.red;
+        Gizmos.DrawSphere(transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.TargetDistance,
+          .005f);
+        Gizmos.DrawSphere(transform.TransformPoint(_backSensor.LocalSpaceOrigin) + Vector3.down * _backSensor.TargetDistance,
+          .005f);
+        // Show Minimum distance
+        Gizmos.color = Color.green;
+        Gizmos.DrawSphere(transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.MinDistance,
+          .005f);
+        Gizmos.DrawSphere(transform.TransformPoint(_backSensor.LocalSpaceOrigin) + Vector3.down * _backSensor.MinDistance,
+          .005f);
+      }
     }
   }
 }

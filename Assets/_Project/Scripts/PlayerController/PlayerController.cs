@@ -131,7 +131,7 @@ namespace RealityWard.PlayerController {
     }
 
     void LateUpdate() {
-      HandleRotation();
+      //HandleRotation();
     }
 
     Vector3 CalculateMovementVelocity() => CalculateMovementDirection() * MovementSpeed;
