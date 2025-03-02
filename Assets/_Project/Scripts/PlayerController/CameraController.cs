@@ -1,4 +1,3 @@
-using KBCore.Refs;
 using UnityEngine;
 
 namespace PlayerController {
@@ -16,7 +15,7 @@ namespace PlayerController {
 
     Transform _tr;
     Camera _cam;
-    [SerializeField, Anywhere] InputReader _input;
+    [SerializeField] InputReader _input;
     #endregion
 
     public Vector3 GetUpDirection() => _tr.up;
