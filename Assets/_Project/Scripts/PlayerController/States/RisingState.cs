@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   public class RisingState : BaseState {
     public RisingState(PlayerController player, Animator animator) : base(player, animator) {
     }

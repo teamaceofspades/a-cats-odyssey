@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   public class SlidingState : BaseState {
     public SlidingState(PlayerController player, Animator animator) : base(player, animator) {
     }

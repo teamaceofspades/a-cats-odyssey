@@ -1,7 +1,7 @@
 using KBCore.Refs;
 using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   public class CameraController : MonoBehaviour {
     #region Fields
     float _currentXAngle;

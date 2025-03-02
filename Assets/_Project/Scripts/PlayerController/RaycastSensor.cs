@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   [Serializable]
   public class RaycastSensor {
     [SerializeField] Vector3 _localSpaceOrigin = Vector3.zero;

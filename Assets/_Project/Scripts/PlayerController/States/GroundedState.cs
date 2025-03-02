@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   public class GroundedState : BaseState {
     public GroundedState(PlayerController player, Animator animator) : base(player, animator) {
     }

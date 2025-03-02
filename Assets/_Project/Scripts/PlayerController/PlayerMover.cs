@@ -4,15 +4,13 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
   public class PlayerMover : MonoBehaviour {
     #region Fields
     [SerializeField] Rigidbody _rb;
     [SerializeField] PlayerController _player;
-    [SerializeField] bool _useTransformDirection = false;
-    [SerializeField] RaycastSensor _frontSensor;
-    [SerializeField] RaycastSensor _backSensor;
+    [SerializeField] bool _isInDebugMode;
 
     float _sensorOffset = 0f;
     Transform _tr;
@@ -21,7 +19,9 @@ namespace RealityWard.PlayerController {
     int _currentLayer;
 
     [Header("Sensor Settings:")]
-    [SerializeField] bool _isInDebugMode;
+    [SerializeField] bool _useTransformDirection = false;
+    [SerializeField] RaycastSensor _frontSensor;
+    [SerializeField] RaycastSensor _backSensor;
     #endregion
 
     void Awake() {

@@ -3,7 +3,7 @@ using TMPro;
 using Unity.VisualScripting;
 using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   interface IInteractable {
     /// <summary>
     /// Gets the player facing context of the Interact Action.

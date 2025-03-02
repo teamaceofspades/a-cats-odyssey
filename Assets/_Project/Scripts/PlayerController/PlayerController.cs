@@ -1,10 +1,10 @@
-using System;
 using RealityWard.EventSystem;
 using RealityWard.StateMachineSystem;
 using RealityWard.Utilities.Helpers;
+using System;
 using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   [RequireComponent(typeof(PlayerMover))]
   public class PlayerController : MonoBehaviour {
     #region Fields
@@ -15,9 +15,9 @@ namespace RealityWard.PlayerController {
     PlayerMover _mover;
     CeilingDetector _ceilingDetector;
 
-    bool _jumpKeyIsPressed => _input.InputActions.Player.Jump.IsPressed();
-    bool _jumpKeyWasPressed => _input.InputActions.Player.Jump.WasPressedThisFrame();
-    bool _jumpKeyWasLetGo => _input.InputActions.Player.Jump.WasReleasedThisFrame();
+    bool JumpKeyIsPressed => _input.InputActions.Player.Jump.IsPressed();
+    bool JumpKeyWasPressed => _input.InputActions.Player.Jump.WasPressedThisFrame();
+    bool JumpKeyWasLetGo => _input.InputActions.Player.Jump.WasReleasedThisFrame();
     bool _jumpInputIsLocked;
 
     public float MovementSpeed = 7f;
@@ -67,7 +67,7 @@ namespace RealityWard.PlayerController {
     }
 
     void HandleJumpKeyInput(bool isButtonPressed) {
-      if (_jumpKeyIsPressed && !isButtonPressed) {
+      if (JumpKeyIsPressed && !isButtonPressed) {
         _jumpInputIsLocked = false;
       }
     }
@@ -84,7 +84,7 @@ namespace RealityWard.PlayerController {
       At(grounded, rising, () => IsRising());
       At(grounded, sliding, () => _mover.IsGrounded() && IsGroundTooSteep());
       At(grounded, falling, () => !_mover.IsGrounded());
-      At(grounded, jumping, () => (_jumpKeyIsPressed || _jumpKeyWasPressed) && !_jumpInputIsLocked);
+      At(grounded, jumping, () => (JumpKeyIsPressed || JumpKeyWasPressed) && !_jumpInputIsLocked);
 
       At(falling, rising, () => IsRising());
       At(falling, grounded, () => _mover.IsGrounded() && !IsGroundTooSteep());
@@ -99,7 +99,7 @@ namespace RealityWard.PlayerController {
       At(rising, falling, () => IsFalling());
       At(rising, falling, () => _ceilingDetector != null && _ceilingDetector.HitCeiling());
 
-      At(jumping, rising, () => _jumpTimer.IsFinished || _jumpKeyWasLetGo);
+      At(jumping, rising, () => _jumpTimer.IsFinished || JumpKeyWasLetGo);
       At(jumping, falling, () => _ceilingDetector != null && _ceilingDetector.HitCeiling());
 
       _stateMachine.SetState(falling);

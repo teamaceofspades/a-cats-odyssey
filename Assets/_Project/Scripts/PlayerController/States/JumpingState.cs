@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   public class JumpingState : BaseState {
     public JumpingState(PlayerController player, Animator animator) : base(player, animator) {
     }

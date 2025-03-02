@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace PlayerController {
   public class CeilingDetector : MonoBehaviour {
     public float ceilingAngleLimit = 10f;
     public bool isInDebugMode;
