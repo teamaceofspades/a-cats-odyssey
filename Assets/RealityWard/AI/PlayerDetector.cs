@@ -1,6 +1,6 @@
-﻿using UnityEngine;
-using RealityWard.EventSystem;
-using RealityWard.PlayerController;
+﻿using RealityWard.EventSystem;
+using RealityWard.PlayerSystem;
+using UnityEngine;
 
 namespace RealityWard.AI {
   public class PlayerDetector : MonoBehaviour {

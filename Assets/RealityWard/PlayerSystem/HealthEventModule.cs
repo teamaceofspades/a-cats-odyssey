@@ -2,7 +2,7 @@
 using System;
 using UnityEngine;
 
-namespace RealityWard.PlayerController {
+namespace RealityWard.PlayerSystem {
   public class HealthEventModule : MonoBehaviour {
     [SerializeField] int _maxHealth = 100;
     [SerializeField] FloatEventChannel _playerHealthChannel;
