@@ -1,4 +1,5 @@
-﻿using System;
+﻿using RealityWard.Utilities.Helpers;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -43,7 +44,7 @@ namespace PlayerController {
     }
 
     float GetYInterceptForYZ(Vector3 a, Vector3 b) {
-      return (a.y - ((a - b).y / (a - b).z) * a.z);
+      return a.y - ((a - b).y / (a - b).z) * a.z;
     }
 
     public void CheckGroundAdjustment() {
@@ -60,8 +61,8 @@ namespace PlayerController {
 
       if (_isInDebugMode) {
         Debug.DrawLine(_backSensor.WorldSpaceOrigin, _frontSensor.WorldSpaceOrigin, Color.red);
-        Debug.DrawLine((_backSensor.WorldSpaceOrigin + backAdjustment),
-          (_frontSensor.WorldSpaceOrigin + frontAdjustment), Color.green);
+        Debug.DrawLine(_backSensor.WorldSpaceOrigin + backAdjustment,
+          _frontSensor.WorldSpaceOrigin + frontAdjustment, Color.green);
       }
 
       //Debug.Log(_backSensor.WorldSpaceOrigin);
@@ -70,8 +71,9 @@ namespace PlayerController {
       //Debug.Log("\n\n\n\n");
       //Vector3 slide = CalcSlideVector();
       _currentGroundAdjustmentVelocity = new Vector3(0,
-        (GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin + frontAdjustment, _backSensor.LocalSpaceOrigin + backAdjustment) - _sensorOffset), 0);
-      HandleXAxisRotation((_frontSensor.WorldSpaceOrigin + frontAdjustment) - (_backSensor.WorldSpaceOrigin + backAdjustment));
+        GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin + frontAdjustment, _backSensor.LocalSpaceOrigin + backAdjustment) - _sensorOffset, 0)
+        * _player.MovementSpeed * 10;
+      HandleXAxisRotation(_frontSensor.WorldSpaceOrigin + frontAdjustment - (_backSensor.WorldSpaceOrigin + backAdjustment));
     }
 
     //private Vector3 CalcSlideVector() {
@@ -80,7 +82,7 @@ namespace PlayerController {
 
     Vector3 CheckSensorGroundAdjustment(RaycastSensor sensor) {
       if (!sensor.HasDetectedHit())
-        return new(0, _player.Gravity, 0);
+        return new(0, _player.Gravity * Time.fixedDeltaTime, 0);
       //Debug.Log(sensor.GetDirectionVector());
       //Debug.Log(sensor.GetDistance());
       //Debug.Log(sensor.TargetDistance);
@@ -89,7 +91,7 @@ namespace PlayerController {
       //  * ((sensor.GetDistance() - sensor.TargetDistance)));
       //Debug.Log("\n\n\n\n");
       return (sensor.GetDistance() - sensor.TargetDistance)
-        * 0.9f * sensor.GetDirectionVector();
+        * sensor.GetDirectionVector();
     }
 
     private void HandleXAxisRotation(Vector3 adjustedDirection) {
@@ -97,7 +99,13 @@ namespace PlayerController {
       Quaternion targetRotation
         = Quaternion.LookRotation(adjustedDirection, Vector3.up);
       _rb.MoveRotation(Quaternion.Slerp(_rb.rotation,
-        targetRotation, .85f));
+        targetRotation, .99f));
+
+      //float angleDifference = VectorMath.GetAngle(_tr.forward, adjustedDirection.normalized, Vector3.up);
+
+      //float step = Mathf.Sign(angleDifference) *
+      //             Mathf.InverseLerp(0f, _fallOffAngle, Mathf.Abs(angleDifference)) *
+      //             Time.deltaTime * TurnSpeed;
     }
 
     public bool IsGrounded() => _isGrounded;

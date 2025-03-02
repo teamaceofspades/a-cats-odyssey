@@ -2606,18 +2606,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _input: {fileID: 11400000, guid: f9d32fc50a391a04589dc72f2f50b1f1, type: 2}
-  MovementSpeed: 7
-  TurnSpeed: 400
-  AirControlRate: 2
-  JumpSpeed: 10
-  JumpDuration: 0.2
-  AirFriction: 0.5
-  GroundFriction: 100
-  Gravity: 30
-  SlideGravity: 5
-  SlopeLimit: 30
-  UseLocalMomentum: 0
-  CurrentYRotation: 0
+  _movementSpeed: 3
+  _turnSpeed: 1600
+  _airControlRate: 2
+  _jumpSpeed: 10
+  _jumpDuration: 0.2
+  _airFriction: 0.5
+  _groundFriction: 100
+  _gravity: -30
+  _slideGravity: -5
+  _slopeLimit: 30
+  _useLocalMomentum: 1
   _cameraTransform: {fileID: 1600618821}
 --- !u!114 &1837818807
 MonoBehaviour:
@@ -2647,6 +2646,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _rb: {fileID: 1837818802}
   _player: {fileID: 1837818805}
+  _isInDebugMode: 1
   _useTransformDirection: 0
   _frontSensor:
     _localSpaceOrigin: {x: 0, y: 0.25, z: 0.065}
@@ -2658,7 +2658,6 @@ MonoBehaviour:
     _minDistance: 0.1
     _targetDistance: 0.25
     _groundedDistance: 0.28
-  _isInDebugMode: 1
 --- !u!1 &1860271300
 GameObject:
   m_ObjectHideFlags: 0

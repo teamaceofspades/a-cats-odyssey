@@ -9,30 +9,104 @@ namespace PlayerController {
   public class PlayerController : MonoBehaviour {
     #region Fields
     [SerializeField] InputReader _input;
+    [SerializeField] float _movementSpeed = 7f;
+    [SerializeField] float _turnSpeed = 50f;
+    [SerializeField] float _airControlRate = 2f;
+    [SerializeField] float _jumpSpeed = 10f;
+    [SerializeField] float _jumpDuration = 0.2f;
+    [SerializeField] float _airFriction = 0.5f;
+    [SerializeField] float _groundFriction = 100f;
+    [SerializeField] float _gravity = -30;
+    [SerializeField] float _slideGravity = -5f;
+    [SerializeField] float _slopeLimit = 30f;
+    [SerializeField] bool _useLocalMomentum = true;
 
     Transform _tr;
     Animator _animator;
     PlayerMover _mover;
     CeilingDetector _ceilingDetector;
 
-    bool JumpKeyIsPressed => _input.InputActions.Player.Jump.IsPressed();
-    bool JumpKeyWasPressed => _input.InputActions.Player.Jump.WasPressedThisFrame();
-    bool JumpKeyWasLetGo => _input.InputActions.Player.Jump.WasReleasedThisFrame();
+    bool JumpKeyIsPressed() => _input.InputActions.Player.Jump.IsPressed();
+    bool JumpKeyWasPressed() => _input.InputActions.Player.Jump.WasPressedThisFrame();
+    bool JumpKeyWasLetGo() => _input.InputActions.Player.Jump.WasReleasedThisFrame();
     bool _jumpInputIsLocked;
 
-    public float MovementSpeed = 7f;
-    public float TurnSpeed = 50f;
-    public float AirControlRate = 2f;
-    public float JumpSpeed = 10f;
-    public float JumpDuration = 0.2f;
-    public float AirFriction = 0.5f;
-    public float GroundFriction = 100f;
-    public float Gravity = -30f;
-    public float SlideGravity = -5f;
-    public float SlopeLimit = 30f;
-    public bool UseLocalMomentum;
-    public float CurrentYRotation;
-    const float _fallOffAngle = 90f;
+    public float MovementSpeed {
+      get { return _movementSpeed; }
+      set {
+        if (value >= 0) _movementSpeed = value;
+        else _movementSpeed = 0;
+      }
+    }
+    public float TurnSpeed {
+      get { return _turnSpeed; }
+      set {
+        if (value >= 0) _turnSpeed = value;
+        else _turnSpeed = 0;
+      }
+    }
+    public float AirControlRate {
+      get { return _airControlRate; }
+      set {
+        if (value >= 0) _airControlRate = value;
+        else _airControlRate = 0;
+      }
+    }
+    public float JumpSpeed {
+      get { return _jumpSpeed; }
+      set {
+        if (value >= 0) _jumpSpeed = value;
+        else _jumpSpeed = 0;
+      }
+    }
+    public float JumpDuration {
+      get { return _jumpDuration; }
+      set {
+        if (value >= 0) _jumpDuration = value;
+        else _jumpDuration = 0;
+      }
+    }
+    public float AirFriction {
+      get { return _airFriction; }
+      set {
+        if (value >= 0) _airFriction = value;
+        else _airFriction = 0;
+      }
+    }
+    public float GroundFriction {
+      get { return _groundFriction; }
+      set {
+        if (value >= 0) _groundFriction = value;
+        else _groundFriction = 0;
+      }
+    }
+    public float Gravity {
+      get { return _gravity; }
+      set {
+        if (value <= 0) _gravity = value;
+        else _gravity = 0;
+      }
+    }
+    public float SlideGravity {
+      get { return _slideGravity; }
+      set {
+        if (value <= 0) _slideGravity = value;
+        else _slideGravity = 0;
+      }
+    }
+    public float SlopeLimit {
+      get { return _slopeLimit; }
+      set {
+        if (value >= 0 && value < 90f) _slopeLimit = value;
+        else _slopeLimit = 0;
+      }
+    }
+    public bool UseLocalMomentum {
+      get { return _useLocalMomentum; }
+      private set { _useLocalMomentum = value; }
+    }
+    public float CurrentYRotation { get; private set; }
+    public const float FallOffAngle = 90f;
 
     StateMachine _stateMachine;
     CountdownTimer _jumpTimer;
@@ -49,6 +123,19 @@ namespace PlayerController {
     public Vector3 GetVelocity() => _savedVelocity;
     public Vector3 GetMomentum() => UseLocalMomentum ? _tr.localToWorldMatrix * _momentum : _momentum;
     public Vector3 GetMovementVelocity() => _savedMovementVelocity;
+
+    void OnValidate() {
+      MovementSpeed = MovementSpeed;
+      TurnSpeed = TurnSpeed;
+      AirControlRate = AirControlRate;
+      JumpSpeed = JumpSpeed;
+      JumpDuration = JumpDuration;
+      AirFriction = AirFriction;
+      GroundFriction = GroundFriction;
+      Gravity = Gravity;
+      SlideGravity = SlideGravity;
+      SlopeLimit = SlopeLimit;
+    }
 
     void Awake() {
       _tr = transform;
@@ -67,7 +154,7 @@ namespace PlayerController {
     }
 
     void HandleJumpKeyInput(bool isButtonPressed) {
-      if (JumpKeyIsPressed && !isButtonPressed) {
+      if (JumpKeyIsPressed() && !isButtonPressed) {
         _jumpInputIsLocked = false;
       }
     }
@@ -84,7 +171,7 @@ namespace PlayerController {
       At(grounded, rising, () => IsRising());
       At(grounded, sliding, () => _mover.IsGrounded() && IsGroundTooSteep());
       At(grounded, falling, () => !_mover.IsGrounded());
-      At(grounded, jumping, () => (JumpKeyIsPressed || JumpKeyWasPressed) && !_jumpInputIsLocked);
+      At(grounded, jumping, () => (JumpKeyIsPressed() || JumpKeyWasPressed()) && !_jumpInputIsLocked);
 
       At(falling, rising, () => IsRising());
       At(falling, grounded, () => _mover.IsGrounded() && !IsGroundTooSteep());
@@ -99,7 +186,7 @@ namespace PlayerController {
       At(rising, falling, () => IsFalling());
       At(rising, falling, () => _ceilingDetector != null && _ceilingDetector.HitCeiling());
 
-      At(jumping, rising, () => _jumpTimer.IsFinished || JumpKeyWasLetGo);
+      At(jumping, rising, () => _jumpTimer.IsFinished || JumpKeyWasLetGo());
       At(jumping, falling, () => _ceilingDetector != null && _ceilingDetector.HitCeiling());
 
       _stateMachine.SetState(falling);
@@ -108,52 +195,52 @@ namespace PlayerController {
     void At(IState from, IState to, Func<bool> condition) => _stateMachine.AddTransition(from, to, condition);
     void Any<T>(IState to, Func<bool> condition) => _stateMachine.AddAnyTransition(to, condition);
 
-    bool IsRising() => VectorMath.GetDotProduct(GetMomentum(), _tr.up) > 0f;
-    bool IsFalling() => VectorMath.GetDotProduct(GetMomentum(), _tr.up) < 0f;
-    bool IsGroundTooSteep() => !_mover.IsGrounded() || Vector3.Angle(_mover.GetGroundNormal(), _tr.up) > SlopeLimit;
+    bool IsRising() => VectorMath.GetDotProduct(GetMomentum(), Vector3.up) > 0f;
+    bool IsFalling() => VectorMath.GetDotProduct(GetMomentum(), Vector3.up) < 0f;
+    bool IsGroundTooSteep() => !_mover.IsGrounded() || Vector3.Angle(_mover.GetGroundNormal(), Vector3.up) > SlopeLimit;
 
-    //void Update() => _stateMachine.Update();
+    void Update() => _stateMachine.Update();
 
     void FixedUpdate() {
-      //_stateMachine.FixedUpdate();
+      _stateMachine.FixedUpdate();
       _mover.CheckGroundAdjustment();
-      //HandleMomentum();
-      //Vector3 velocity = _stateMachine.CurrentState is GroundedState ? CalculateMovementVelocity() : Vector3.zero;
-      //velocity += UseLocalMomentum ? _tr.localToWorldMatrix * _momentum : _momentum;
+      HandleMomentum();
+      Vector3 velocity = _stateMachine.CurrentState is GroundedState ? CalculateMovementVelocity() : Vector3.zero;
+      velocity += UseLocalMomentum ? _tr.localToWorldMatrix * _momentum : _momentum;
 
-      //_mover.SetVelocity(velocity);
-      _mover.SetVelocity(Vector3.zero);
+      _mover.SetVelocity(velocity);
+      //_mover.SetVelocity(Vector3.zero);
 
-      //_savedVelocity = velocity;
-      //_savedMovementVelocity = CalculateMovementVelocity();
+      _savedVelocity = velocity;
+      _savedMovementVelocity = CalculateMovementVelocity();
 
-      //if (_ceilingDetector != null) _ceilingDetector.Reset();
+      if (_ceilingDetector != null) _ceilingDetector.Reset();
     }
 
     void LateUpdate() {
-      //HandleRotation();
+      HandleRotation();
     }
 
     Vector3 CalculateMovementVelocity() => CalculateMovementDirection() * MovementSpeed;
 
     Vector3 CalculateMovementDirection() {
       Vector3 direction = _cameraTransform == null
-          ? _tr.right * _input.Direction.x + _tr.forward * _input.Direction.y
-          : Vector3.ProjectOnPlane(_cameraTransform.right, _tr.up).normalized * _input.Direction.x +
-            Vector3.ProjectOnPlane(_cameraTransform.forward, _tr.up).normalized * _input.Direction.y;
+          ? Vector3.ProjectOnPlane(_tr.right, Vector3.up).normalized * _input.Direction.x + Vector3.ProjectOnPlane(_tr.forward, Vector3.up).normalized * _input.Direction.y
+          : Vector3.ProjectOnPlane(_cameraTransform.right, Vector3.up).normalized * _input.Direction.x +
+            Vector3.ProjectOnPlane(_cameraTransform.forward, Vector3.up).normalized * _input.Direction.y;
 
-      return direction.magnitude > 1f ? direction.normalized : direction;
+      return direction.normalized;
     }
 
     void HandleRotation() {
       // Adjust the rotation to match the movement direction
-      Vector3 velocity = Vector3.ProjectOnPlane(GetMovementVelocity(), _tr.up);
+      Vector3 velocity = Vector3.ProjectOnPlane(GetMovementVelocity(), Vector3.up);
       if (velocity.magnitude < 0.001f) return;
 
-      float angleDifference = VectorMath.GetAngle(_tr.forward, velocity.normalized, _tr.up);
+      float angleDifference = VectorMath.GetAngle(Vector3.ProjectOnPlane(_tr.forward, Vector3.up).normalized, velocity.normalized, Vector3.up);
 
       float step = Mathf.Sign(angleDifference) *
-                   Mathf.InverseLerp(0f, _fallOffAngle, Mathf.Abs(angleDifference)) *
+                   Mathf.InverseLerp(0f, FallOffAngle, Mathf.Abs(angleDifference)) *
                    Time.deltaTime * TurnSpeed;
 
       CurrentYRotation += Mathf.Abs(step) > Mathf.Abs(angleDifference) ? angleDifference : step;
@@ -164,11 +251,11 @@ namespace PlayerController {
     void HandleMomentum() {
       if (UseLocalMomentum) _momentum = _tr.localToWorldMatrix * _momentum;
 
-      Vector3 verticalMomentum = VectorMath.ExtractDotVector(_momentum, _tr.up);
+      Vector3 verticalMomentum = VectorMath.ExtractDotVector(_momentum, Vector3.up);
       Vector3 horizontalMomentum = _momentum - verticalMomentum;
 
-      verticalMomentum -= _tr.up * (Gravity * Time.deltaTime);
-      if (_stateMachine.CurrentState is GroundedState && VectorMath.GetDotProduct(verticalMomentum, _tr.up) < 0f) {
+      verticalMomentum += Vector3.up * (Gravity * Time.deltaTime);
+      if (_stateMachine.CurrentState is GroundedState && VectorMath.GetDotProduct(verticalMomentum, Vector3.up) < 0f) {
         verticalMomentum = Vector3.zero;
       }
 
@@ -191,11 +278,11 @@ namespace PlayerController {
 
       if (_stateMachine.CurrentState is SlidingState) {
         _momentum = Vector3.ProjectOnPlane(_momentum, _mover.GetGroundNormal());
-        if (VectorMath.GetDotProduct(_momentum, _tr.up) > 0f) {
-          _momentum = VectorMath.RemoveDotVector(_momentum, _tr.up);
+        if (VectorMath.GetDotProduct(_momentum, Vector3.up) > 0f) {
+          _momentum = VectorMath.RemoveDotVector(_momentum, Vector3.up);
         }
 
-        Vector3 slideDirection = Vector3.ProjectOnPlane(-_tr.up, _mover.GetGroundNormal()).normalized;
+        Vector3 slideDirection = Vector3.ProjectOnPlane(-Vector3.up, _mover.GetGroundNormal()).normalized;
         _momentum += slideDirection * (SlideGravity * Time.deltaTime);
       }
 
@@ -203,14 +290,14 @@ namespace PlayerController {
     }
 
     void HandleJumping() {
-      _momentum = VectorMath.RemoveDotVector(_momentum, _tr.up);
-      _momentum += _tr.up * JumpSpeed;
+      _momentum = VectorMath.RemoveDotVector(_momentum, Vector3.up);
+      _momentum += Vector3.up * JumpSpeed;
     }
 
     public void OnJumpStart() {
       if (UseLocalMomentum) _momentum = _tr.localToWorldMatrix * _momentum;
 
-      _momentum += _tr.up * JumpSpeed;
+      _momentum += Vector3.up * JumpSpeed;
       _jumpTimer.Start();
       _jumpInputIsLocked = true;
       OnJump.Invoke(_momentum);
@@ -240,9 +327,9 @@ namespace PlayerController {
     }
 
     public void OnFallStart() {
-      var currentUpMomemtum = VectorMath.ExtractDotVector(_momentum, _tr.up);
-      _momentum = VectorMath.RemoveDotVector(_momentum, _tr.up);
-      _momentum -= _tr.up * currentUpMomemtum.magnitude;
+      var currentUpMomemtum = VectorMath.ExtractDotVector(_momentum, Vector3.up);
+      _momentum = VectorMath.RemoveDotVector(_momentum, Vector3.up);
+      _momentum -= Vector3.up * currentUpMomemtum.magnitude;
     }
 
     void AdjustHorizontalMomentum(ref Vector3 horizontalMomentum, Vector3 movementVelocity) {
@@ -259,7 +346,7 @@ namespace PlayerController {
     }
 
     void HandleSliding(ref Vector3 horizontalMomentum) {
-      Vector3 pointDownVector = Vector3.ProjectOnPlane(_mover.GetGroundNormal(), _tr.up).normalized;
+      Vector3 pointDownVector = Vector3.ProjectOnPlane(_mover.GetGroundNormal(), Vector3.up).normalized;
       Vector3 movementVelocity = CalculateMovementVelocity();
       movementVelocity = VectorMath.RemoveDotVector(movementVelocity, pointDownVector);
       horizontalMomentum += movementVelocity * Time.fixedDeltaTime;
