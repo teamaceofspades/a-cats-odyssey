@@ -9,46 +9,59 @@ namespace PlayerController {
   [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
   public class PlayerMover : MonoBehaviour {
     #region Fields
-    [SerializeField] Rigidbody _rb;
-    [SerializeField] PlayerController _player;
-    [SerializeField] bool _isInDebugMode;
+    [SerializeField] private Rigidbody _rb;
+    [SerializeField] private PlayerController _player;
+    [SerializeField] private bool _isInDebugMode;
+    /// <summary>
+    /// The maximum degrees of rotation possible per CheckGroundAdjustment().<br />
+    /// Validation: <c>value &lt; 180f &amp;&amp; value &gt;= 0f</c>
+    /// </summary>
+    [SerializeField] private float _maxAdjAngle = 90f;
 
-    float _sensorOffset = 0f;
-    Transform _tr;
-    bool _isGrounded;
-    Vector3 _currentGroundAdjustmentVelocity; // Velocity to adjust player position to maintain ground contact
-    int _currentLayer;
+    private float _sensorOffset = 0f;
+    private Transform _tr;
+    private bool _isGrounded;
+    private Vector3 _currentGroundAdjustmentVelocity; // Velocity to adjust player position to maintain ground contact
+    private int _currentLayer;
 
     [Header("Sensor Settings:")]
-    [SerializeField] bool _useTransformDirection = false;
-    [SerializeField] RaycastSensor _frontSensor;
-    [SerializeField] RaycastSensor _backSensor;
+    [SerializeField] private bool _useTransformDirection = false;
+    [SerializeField] private RaycastSensor _frontSensor;
+    [SerializeField] private RaycastSensor _backSensor;
+
+    public float MaxAdjAngle {
+      get { return _maxAdjAngle; }
+      set {
+        if (value >= 180f) _maxAdjAngle = 179.99f;
+        else if (value < 0f) _maxAdjAngle = 0f;
+        else _maxAdjAngle = value;
+      }
+    }
     #endregion
 
-    void Awake() {
-      Setup();
+    private void Awake() {
+      BaseSetup();
       RecalculateSensorLayerMask();
     }
 
-    void LateUpdate() {
+    private void LateUpdate() {
       if (_isInDebugMode) {
         _frontSensor.DrawDebug();
         _backSensor.DrawDebug();
       }
     }
 
-    void OnValidate() {
-      Setup();
+    private void OnValidate() {
+      BaseSetup();
       _frontSensor.OnValidate();
       _backSensor.OnValidate();
     }
 
-    float GetYInterceptForYZ(Vector3 a, Vector3 b) {
+    private float GetYInterceptForYZ(Vector3 a, Vector3 b) {
       return a.y - ((a - b).y / (a - b).z) * a.z;
     }
 
     public void CheckGroundAdjustment() {
-      Vector3 frontAdjustment, backAdjustment;
       if (_currentLayer != gameObject.layer) {
         RecalculateSensorLayerMask();
       }
@@ -56,8 +69,8 @@ namespace PlayerController {
       _backSensor.Cast();
       _isGrounded = _frontSensor.HasDetectedHit() || _backSensor.HasDetectedHit();
 
-      frontAdjustment = CheckSensorGroundAdjustment(_frontSensor);
-      backAdjustment = CheckSensorGroundAdjustment(_backSensor);
+      Vector3 frontAdjustment = CheckSensorGroundAdjustment(_frontSensor);
+      Vector3 backAdjustment = CheckSensorGroundAdjustment(_backSensor);
 
       if (_isInDebugMode) {
         Debug.DrawLine(_backSensor.WorldSpaceOrigin, _frontSensor.WorldSpaceOrigin, Color.red);
@@ -65,31 +78,35 @@ namespace PlayerController {
           _frontSensor.WorldSpaceOrigin + frontAdjustment, Color.green);
       }
 
-      //Debug.Log(_backSensor.WorldSpaceOrigin);
-      //Debug.Log(backAdjustment);
-      //Debug.Log(_backSensor.WorldSpaceOrigin + backAdjustment);
-      //Debug.Log("\n\n\n\n");
-      //Vector3 slide = CalcSlideVector();
+      Vector3 adjustedDirection = _frontSensor.WorldSpaceOrigin + frontAdjustment - (_backSensor.WorldSpaceOrigin + backAdjustment);
+      // initial angle
+      float angleRatio = Vector3.Angle(_tr.forward, adjustedDirection);
+      // check adjustedDirection rotation against _maxAdjAngle
+      if (angleRatio > _maxAdjAngle) {
+        // set to actual ratio
+        angleRatio = _maxAdjAngle / angleRatio;
+        // get new direction at _maxAdjAngle
+        adjustedDirection = Vector3.Slerp(_tr.forward, adjustedDirection, angleRatio);
+      }
+      else {
+        // if less than _maxAdjAngle set to 1 for no scalar effect
+        angleRatio = 1f;
+      }
+
+      // get height adjustment based on where the adjustedDirection intercepts the local y axis
       _currentGroundAdjustmentVelocity = new Vector3(0,
-        GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin + frontAdjustment, _backSensor.LocalSpaceOrigin + backAdjustment) - _sensorOffset, 0)
-        * _player.MovementSpeed * 10;
-      HandleXAxisRotation(_frontSensor.WorldSpaceOrigin + frontAdjustment - (_backSensor.WorldSpaceOrigin + backAdjustment));
+          GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin + frontAdjustment * angleRatio, _backSensor.LocalSpaceOrigin + backAdjustment * angleRatio) - _sensorOffset, 0)
+          * _player.MovementSpeed * 10;
+      HandleXAxisRotation(adjustedDirection);
     }
 
     //private Vector3 CalcSlideVector() {
 
     //}
 
-    Vector3 CheckSensorGroundAdjustment(RaycastSensor sensor) {
+    private Vector3 CheckSensorGroundAdjustment(RaycastSensor sensor) {
       if (!sensor.HasDetectedHit())
         return new(0, _player.Gravity * Time.fixedDeltaTime, 0);
-      //Debug.Log(sensor.GetDirectionVector());
-      //Debug.Log(sensor.GetDistance());
-      //Debug.Log(sensor.TargetDistance);
-      //Debug.Log(Time.fixedDeltaTime);
-      //Debug.Log(sensor.GetDirectionVector()
-      //  * ((sensor.GetDistance() - sensor.TargetDistance)));
-      //Debug.Log("\n\n\n\n");
       return (sensor.GetDistance() - sensor.TargetDistance)
         * sensor.GetDirectionVector();
     }
@@ -109,27 +126,45 @@ namespace PlayerController {
     }
 
     public bool IsGrounded() => _isGrounded;
-    public Vector3 GetGroundNormal() => (_frontSensor.GetNormal() + _backSensor.GetNormal()) / 2;
+    public Vector3 GetAverageGroundNormal() => (_frontSensor.GetNormal() + _backSensor.GetNormal()) / 2;
     public Vector3 GetFrontGroundNormal() => _frontSensor.GetNormal();
     public Vector3 GetBackGroundNormal() => _backSensor.GetNormal();
 
-    // NOTE: Older versions of Unity use rb.velocity instead
+    /// <summary>
+    /// Set the linearVelocity of the rigidbody component plus the _currentGroundAdjustmentVelocity for smoothing elevation changes.
+    /// </summary>
+    /// <param name="velocity">New velocity no adjustments.</param>
     public void SetVelocity(Vector3 velocity) => _rb.linearVelocity = velocity + _currentGroundAdjustmentVelocity;
 
-    void Setup() {
+    /// <summary>
+    /// Finish setup for PlayerMover.
+    /// </summary>
+    private void BaseSetup() {
       _rb = gameObject.GetComponent<Rigidbody>();
       _rb.freezeRotation = true;
       _rb.useGravity = false;
       _player = gameObject.GetComponent<PlayerController>();
       _tr = transform;
-      _backSensor.Setup(_tr, _useTransformDirection);
-      _frontSensor.Setup(_tr, _useTransformDirection);
-      _frontSensor.SetCastDirection(RaycastSensor.CastDirection.Down);
-      _backSensor.SetCastDirection(RaycastSensor.CastDirection.Down);
-      _sensorOffset = GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin, _backSensor.LocalSpaceOrigin);
+      SensorSetup();
     }
 
-    void RecalculateSensorLayerMask() {
+    /// <summary>
+    /// Initialize RaycastSensors.
+    /// </summary>
+    private void SensorSetup() {
+      _backSensor.Setup(_tr, _useTransformDirection);
+      _frontSensor.Setup(_tr, _useTransformDirection);
+      // set direction to check
+      _frontSensor.SetCastDirection(RaycastSensor.CastDirection.Down);
+      _backSensor.SetCastDirection(RaycastSensor.CastDirection.Down);
+      // get offset from player transform origin
+      _sensorOffset = GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin, _backSensor.LocalSpaceOrigin);
+      // get cast length
+      _frontSensor.CastDistance = _frontSensor.TargetDistance - _frontSensor.MinDistance + Vector3.Distance(_frontSensor.LocalSpaceOrigin, _backSensor.LocalSpaceOrigin) - _backSensor.MinDistance;
+      _backSensor.CastDistance = _backSensor.TargetDistance - _backSensor.MinDistance + Vector3.Distance(_backSensor.LocalSpaceOrigin, _frontSensor.LocalSpaceOrigin) - _frontSensor.MinDistance;
+    }
+
+    private void RecalculateSensorLayerMask() {
       int objectLayer = gameObject.layer;
       int layerMask = Physics.AllLayers;
 
@@ -147,21 +182,28 @@ namespace PlayerController {
       _currentLayer = objectLayer;
     }
 
-    void OnDrawGizmos() {
+    private void OnDrawGizmos() {
       if (_isInDebugMode) {
-        // Show Cast length
+        SensorSetup();
+        // Show Cast Distance
         Gizmos.color = Color.blue;
         Gizmos.DrawLine(transform.TransformPoint(_frontSensor.LocalSpaceOrigin),
-          transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.GroundedDistance);
+          transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.CastDistance);
         Gizmos.DrawLine(transform.TransformPoint(_backSensor.LocalSpaceOrigin),
-          transform.TransformPoint(_backSensor.LocalSpaceOrigin) + Vector3.down * _backSensor.GroundedDistance);
-        // Show Target distance
+          transform.TransformPoint(_backSensor.LocalSpaceOrigin) + Vector3.down * _backSensor.CastDistance);
+        // Show Grounded Distance
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawSphere(transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.MaxDistance,
+          .005f);
+        Gizmos.DrawSphere(transform.TransformPoint(_backSensor.LocalSpaceOrigin) + Vector3.down * _backSensor.MaxDistance,
+          .005f);
+        // Show Target Distance
         Gizmos.color = Color.red;
         Gizmos.DrawSphere(transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.TargetDistance,
           .005f);
         Gizmos.DrawSphere(transform.TransformPoint(_backSensor.LocalSpaceOrigin) + Vector3.down * _backSensor.TargetDistance,
           .005f);
-        // Show Minimum distance
+        // Show Minimum Distance
         Gizmos.color = Color.green;
         Gizmos.DrawSphere(transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.MinDistance,
           .005f);

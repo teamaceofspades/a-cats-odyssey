@@ -8,28 +8,28 @@ namespace PlayerController {
   [RequireComponent(typeof(PlayerMover))]
   public class PlayerController : MonoBehaviour {
     #region Fields
-    [SerializeField] InputReader _input;
-    [SerializeField] float _movementSpeed = 7f;
-    [SerializeField] float _turnSpeed = 50f;
-    [SerializeField] float _airControlRate = 2f;
-    [SerializeField] float _jumpSpeed = 10f;
-    [SerializeField] float _jumpDuration = 0.2f;
-    [SerializeField] float _airFriction = 0.5f;
-    [SerializeField] float _groundFriction = 100f;
-    [SerializeField] float _gravity = -30;
-    [SerializeField] float _slideGravity = -5f;
-    [SerializeField] float _slopeLimit = 30f;
-    [SerializeField] bool _useLocalMomentum = true;
+    [SerializeField] private InputReader _input;
+    [SerializeField] private float _movementSpeed = 7f;
+    [SerializeField] private float _turnSpeed = 50f;
+    [SerializeField] private float _airControlRate = 2f;
+    [SerializeField] private float _jumpSpeed = 10f;
+    [SerializeField] private float _jumpDuration = 0.2f;
+    [SerializeField] private float _airFriction = 0.5f;
+    [SerializeField] private float _groundFriction = 100f;
+    [SerializeField] private float _gravity = -30;
+    [SerializeField] private float _slideGravity = -5f;
+    [SerializeField] private float _slopeLimit = 30f;
+    [SerializeField] private bool _useLocalMomentum = true;
 
-    Transform _tr;
-    Animator _animator;
-    PlayerMover _mover;
-    CeilingDetector _ceilingDetector;
+    private Transform _tr;
+    private Animator _animator;
+    private PlayerMover _mover;
+    private CeilingDetector _ceilingDetector;
 
-    bool JumpKeyIsPressed() => _input.InputActions.Player.Jump.IsPressed();
-    bool JumpKeyWasPressed() => _input.InputActions.Player.Jump.WasPressedThisFrame();
-    bool JumpKeyWasLetGo() => _input.InputActions.Player.Jump.WasReleasedThisFrame();
-    bool _jumpInputIsLocked;
+    private bool JumpKeyIsPressed() => _input.InputActions.Player.Jump.IsPressed();
+    private bool JumpKeyWasPressed() => _input.InputActions.Player.Jump.WasPressedThisFrame();
+    private bool JumpKeyWasLetGo() => _input.InputActions.Player.Jump.WasReleasedThisFrame();
+    private bool _jumpInputIsLocked;
 
     public float MovementSpeed {
       get { return _movementSpeed; }
@@ -108,23 +108,23 @@ namespace PlayerController {
     public float CurrentYRotation { get; private set; }
     public const float FallOffAngle = 90f;
 
-    StateMachine _stateMachine;
-    CountdownTimer _jumpTimer;
+    private StateMachine _stateMachine;
+    private CountdownTimer _jumpTimer;
 
-    [SerializeField] Transform _cameraTransform;
+    [SerializeField] private Transform _cameraTransform;
 
-    Vector3 _momentum, _savedVelocity, _savedMovementVelocity;
+    private Vector3 _momentum, _savedVelocity, _savedMovementVelocity;
 
     public event Action<Vector3> OnJump = delegate { };
     public event Action<Vector3> OnLand = delegate { };
     #endregion
 
-    bool IsGrounded() => _stateMachine.CurrentState is GroundedState or SlidingState;
+    private bool IsGrounded() => _stateMachine.CurrentState is GroundedState or SlidingState;
     public Vector3 GetVelocity() => _savedVelocity;
     public Vector3 GetMomentum() => UseLocalMomentum ? _tr.localToWorldMatrix * _momentum : _momentum;
     public Vector3 GetMovementVelocity() => _savedMovementVelocity;
 
-    void OnValidate() {
+    private void OnValidate() {
       MovementSpeed = MovementSpeed;
       TurnSpeed = TurnSpeed;
       AirControlRate = AirControlRate;
@@ -137,7 +137,7 @@ namespace PlayerController {
       SlopeLimit = SlopeLimit;
     }
 
-    void Awake() {
+    private void Awake() {
       _tr = transform;
       _mover = GetComponent<PlayerMover>();
       _animator = GetComponent<Animator>();
@@ -148,18 +148,18 @@ namespace PlayerController {
       SetupStateMachine();
     }
 
-    void Start() {
+    private void Start() {
       _input.EnablePlayerActions();
       _input.Jump += HandleJumpKeyInput;
     }
 
-    void HandleJumpKeyInput(bool isButtonPressed) {
+    private void HandleJumpKeyInput(bool isButtonPressed) {
       if (JumpKeyIsPressed() && !isButtonPressed) {
         _jumpInputIsLocked = false;
       }
     }
 
-    void SetupStateMachine() {
+    private void SetupStateMachine() {
       _stateMachine = new StateMachine();
 
       var grounded = new GroundedState(this, _animator);
@@ -192,16 +192,16 @@ namespace PlayerController {
       _stateMachine.SetState(falling);
     }
 
-    void At(IState from, IState to, Func<bool> condition) => _stateMachine.AddTransition(from, to, condition);
-    void Any<T>(IState to, Func<bool> condition) => _stateMachine.AddAnyTransition(to, condition);
+    private void At(IState from, IState to, Func<bool> condition) => _stateMachine.AddTransition(from, to, condition);
+    private void Any<T>(IState to, Func<bool> condition) => _stateMachine.AddAnyTransition(to, condition);
 
-    bool IsRising() => VectorMath.GetDotProduct(GetMomentum(), Vector3.up) > 0f;
-    bool IsFalling() => VectorMath.GetDotProduct(GetMomentum(), Vector3.up) < 0f;
-    bool IsGroundTooSteep() => !_mover.IsGrounded() || Vector3.Angle(_mover.GetGroundNormal(), Vector3.up) > SlopeLimit;
+    private bool IsRising() => VectorMath.GetDotProduct(GetMomentum(), Vector3.up) > 0f;
+    private bool IsFalling() => VectorMath.GetDotProduct(GetMomentum(), Vector3.up) < 0f;
+    private bool IsGroundTooSteep() => !_mover.IsGrounded() || Vector3.Angle(_mover.GetAverageGroundNormal(), Vector3.up) > SlopeLimit;
 
-    void Update() => _stateMachine.Update();
+    private void Update() => _stateMachine.Update();
 
-    void FixedUpdate() {
+    private void FixedUpdate() {
       _stateMachine.FixedUpdate();
       _mover.CheckGroundAdjustment();
       HandleMomentum();
@@ -217,13 +217,13 @@ namespace PlayerController {
       if (_ceilingDetector != null) _ceilingDetector.Reset();
     }
 
-    void LateUpdate() {
+    private void LateUpdate() {
       HandleRotation();
     }
 
-    Vector3 CalculateMovementVelocity() => CalculateMovementDirection() * MovementSpeed;
+    private Vector3 CalculateMovementVelocity() => CalculateMovementDirection() * MovementSpeed;
 
-    Vector3 CalculateMovementDirection() {
+    private Vector3 CalculateMovementDirection() {
       Vector3 direction = _cameraTransform == null
           ? Vector3.ProjectOnPlane(_tr.right, Vector3.up).normalized * _input.Direction.x + Vector3.ProjectOnPlane(_tr.forward, Vector3.up).normalized * _input.Direction.y
           : Vector3.ProjectOnPlane(_cameraTransform.right, Vector3.up).normalized * _input.Direction.x +
@@ -232,7 +232,7 @@ namespace PlayerController {
       return direction.normalized;
     }
 
-    void HandleRotation() {
+    private void HandleRotation() {
       // Adjust the rotation to match the movement direction
       Vector3 velocity = Vector3.ProjectOnPlane(GetMovementVelocity(), Vector3.up);
       if (velocity.magnitude < 0.001f) return;
@@ -248,7 +248,7 @@ namespace PlayerController {
       _tr.localRotation = Quaternion.Euler(0f, CurrentYRotation, 0f);
     }
 
-    void HandleMomentum() {
+    private void HandleMomentum() {
       if (UseLocalMomentum) _momentum = _tr.localToWorldMatrix * _momentum;
 
       Vector3 verticalMomentum = VectorMath.ExtractDotVector(_momentum, Vector3.up);
@@ -277,19 +277,19 @@ namespace PlayerController {
       }
 
       if (_stateMachine.CurrentState is SlidingState) {
-        _momentum = Vector3.ProjectOnPlane(_momentum, _mover.GetGroundNormal());
+        _momentum = Vector3.ProjectOnPlane(_momentum, _mover.GetAverageGroundNormal());
         if (VectorMath.GetDotProduct(_momentum, Vector3.up) > 0f) {
           _momentum = VectorMath.RemoveDotVector(_momentum, Vector3.up);
         }
 
-        Vector3 slideDirection = Vector3.ProjectOnPlane(-Vector3.up, _mover.GetGroundNormal()).normalized;
+        Vector3 slideDirection = Vector3.ProjectOnPlane(-Vector3.up, _mover.GetAverageGroundNormal()).normalized;
         _momentum += slideDirection * (SlideGravity * Time.deltaTime);
       }
 
       if (UseLocalMomentum) _momentum = _tr.worldToLocalMatrix * _momentum;
     }
 
-    void HandleJumping() {
+    private void HandleJumping() {
       _momentum = VectorMath.RemoveDotVector(_momentum, Vector3.up);
       _momentum += Vector3.up * JumpSpeed;
     }
@@ -332,7 +332,7 @@ namespace PlayerController {
       _momentum -= Vector3.up * currentUpMomemtum.magnitude;
     }
 
-    void AdjustHorizontalMomentum(ref Vector3 horizontalMomentum, Vector3 movementVelocity) {
+    private void AdjustHorizontalMomentum(ref Vector3 horizontalMomentum, Vector3 movementVelocity) {
       if (horizontalMomentum.magnitude > MovementSpeed) {
         if (VectorMath.GetDotProduct(movementVelocity, horizontalMomentum.normalized) > 0f) {
           movementVelocity = VectorMath.RemoveDotVector(movementVelocity, horizontalMomentum.normalized);
@@ -345,8 +345,8 @@ namespace PlayerController {
       }
     }
 
-    void HandleSliding(ref Vector3 horizontalMomentum) {
-      Vector3 pointDownVector = Vector3.ProjectOnPlane(_mover.GetGroundNormal(), Vector3.up).normalized;
+    private void HandleSliding(ref Vector3 horizontalMomentum) {
+      Vector3 pointDownVector = Vector3.ProjectOnPlane(_mover.GetAverageGroundNormal(), Vector3.up).normalized;
       Vector3 movementVelocity = CalculateMovementVelocity();
       movementVelocity = VectorMath.RemoveDotVector(movementVelocity, pointDownVector);
       horizontalMomentum += movementVelocity * Time.fixedDeltaTime;

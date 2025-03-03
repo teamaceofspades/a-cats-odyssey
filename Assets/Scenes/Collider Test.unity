@@ -2492,7 +2492,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1837818799}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cdea5d8750bc55c4bbd05a6bc0f32315, type: 3}
   m_Name: 
@@ -2502,6 +2502,7 @@ MonoBehaviour:
   _layerMask:
     serializedVersion: 2
     m_Bits: 64
+  _isInDebugMode: 0
 --- !u!136 &1837818801
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2647,17 +2648,20 @@ MonoBehaviour:
   _rb: {fileID: 1837818802}
   _player: {fileID: 1837818805}
   _isInDebugMode: 1
+  _maxAdjAngle: 90
   _useTransformDirection: 0
   _frontSensor:
     _localSpaceOrigin: {x: 0, y: 0.25, z: 0.065}
     _minDistance: 0.1
     _targetDistance: 0.25
-    _groundedDistance: 0.28
+    _maxDistance: 1.1
+    _castDistance: 1.1
   _backSensor:
     _localSpaceOrigin: {x: 0, y: 0.25, z: -0.175}
     _minDistance: 0.1
     _targetDistance: 0.25
-    _groundedDistance: 0.28
+    _maxDistance: 1.1
+    _castDistance: 1.1
 --- !u!1 &1860271300
 GameObject:
   m_ObjectHideFlags: 0

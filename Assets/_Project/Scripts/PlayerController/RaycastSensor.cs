@@ -4,10 +4,11 @@ using UnityEngine;
 namespace PlayerController {
   [Serializable]
   public class RaycastSensor {
-    [SerializeField] Vector3 _localSpaceOrigin = Vector3.zero;
-    [SerializeField] float _minDistance = .1f;
-    [SerializeField] float _targetDistance = 1f;
-    [SerializeField] float _groundedDistance = 1.1f;
+    [SerializeField] private Vector3 _localSpaceOrigin = Vector3.zero;
+    [SerializeField] private float _minDistance = .1f;
+    [SerializeField] private float _targetDistance = 1f;
+    [SerializeField] private float _maxDistance = 1.1f;
+    [SerializeField] private float _castDistance = 2f;
 
     public float MinDistance {
       get { return _minDistance; }
@@ -23,23 +24,30 @@ namespace PlayerController {
         else _targetDistance = _minDistance;
       }
     }
-    public float GroundedDistance {
-      get { return _groundedDistance; }
+    public float MaxDistance {
+      get { return _maxDistance; }
       set {
-        if (value >= _targetDistance) _groundedDistance = value;
-        else _groundedDistance = _targetDistance;
+        if (value >= _targetDistance) _maxDistance = value;
+        else _maxDistance = _targetDistance;
+      }
+    }
+    public float CastDistance {
+      get { return _castDistance; }
+      set {
+        if (value >= _maxDistance) _castDistance = value;
+        else _castDistance = _maxDistance;
       }
     }
     public Vector3 LocalSpaceOrigin { get { return _localSpaceOrigin; } }
     public Vector3 WorldSpaceOrigin { get; private set; }
 
-    Transform _tr;
-    bool _useTransformDirection;
-    LayerMask _layermask = 255;
-    RaycastHit _hitInfo;
+    private Transform _tr;
+    private bool _useTransformDirection;
+    private LayerMask _layermask = 255;
+    private RaycastHit _hitInfo;
 
     public enum CastDirection { Forward, Right, Up, Backward, Left, Down }
-    CastDirection _castDirection;
+    private CastDirection _castDirection;
 
     public void Layermask(LayerMask value) => _layermask = value;
 
@@ -52,7 +60,7 @@ namespace PlayerController {
       WorldSpaceOrigin = _tr.TransformPoint(_localSpaceOrigin);
       Vector3 worldDirection = GetDirectionVector();
 
-      Physics.Raycast(WorldSpaceOrigin, worldDirection, out _hitInfo, GroundedDistance, _layermask, QueryTriggerInteraction.Ignore);
+      Physics.Raycast(WorldSpaceOrigin, worldDirection, out _hitInfo, _castDistance, _layermask, QueryTriggerInteraction.Ignore);
     }
 
     public bool HasDetectedHit() => _hitInfo.collider != null;
@@ -66,7 +74,7 @@ namespace PlayerController {
     public Vector3 GetDirectionVector() => _useTransformDirection ? GetCastDirection() : GetWorldCastDirection();
     public void SetCastOrigin(Vector3 pos) => _localSpaceOrigin = _tr.InverseTransformPoint(pos);
 
-    Vector3 GetCastDirection() {
+    private Vector3 GetCastDirection() {
       return _castDirection switch {
         CastDirection.Forward => _tr.forward,
         CastDirection.Right => _tr.right,
@@ -78,7 +86,7 @@ namespace PlayerController {
       };
     }
 
-    Vector3 GetWorldCastDirection() {
+    private Vector3 GetWorldCastDirection() {
       return _castDirection switch {
         CastDirection.Forward => Vector3.forward,
         CastDirection.Right => Vector3.right,
@@ -94,7 +102,8 @@ namespace PlayerController {
       _localSpaceOrigin.x = 0;
       MinDistance = MinDistance;
       TargetDistance = TargetDistance;
-      GroundedDistance = GroundedDistance;
+      MaxDistance = MaxDistance;
+      CastDistance = CastDistance;
     }
 
     public void DrawDebug() {

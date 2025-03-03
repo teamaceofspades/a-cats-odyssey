@@ -4,28 +4,29 @@ using Unity.VisualScripting;
 using UnityEngine;
 
 namespace PlayerController {
-  interface IInteractable {
+  internal interface IInteractable {
     /// <summary>
     /// Gets the player facing context of the Interact Action.
     /// For example: "Open Door", "Pick Up Collar"
     /// </summary>
     /// <returns>Interact Context</returns>
-    public String GetInteractText();
+    String GetInteractText();
     /// <summary>
     /// Method to allow the player the ability to interact with the object.
     /// </summary>
-    public bool Interact();
+    bool Interact();
   }
 
   public class Interactor : MonoBehaviour {
     [SerializeField] private Transform _center;
     [SerializeField] private float _radius;
     [SerializeField] private LayerMask _layerMask;
+    [SerializeField] private bool _isInDebugMode = true;
     private readonly Collider[] _colliders = new Collider[4];
     private int _numFound = 0;
 
     // Update is called once per frame
-    void Update() {
+    private void Update() {
       _numFound = Physics.OverlapSphereNonAlloc(_center.position, _radius, _colliders, _layerMask);
     }
 
@@ -75,7 +76,7 @@ namespace PlayerController {
 #nullable disable
 
     private void OnDrawGizmos() {
-      if (enabled) {
+      if (_isInDebugMode) {
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(_center.position, _radius);
       }
