@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace PlayerController {
+namespace PlayerController.States {
   public class GroundedState : BaseState {
     public GroundedState(PlayerController player, Animator animator) : base(player, animator) {
     }

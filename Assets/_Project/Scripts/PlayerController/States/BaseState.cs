@@ -1,7 +1,7 @@
 using RealityWard.StateMachineSystem;
 using UnityEngine;
 
-namespace PlayerController {
+namespace PlayerController.States {
   public abstract class BaseState : IState {
     protected readonly PlayerController _player;
     protected readonly Animator _animator;

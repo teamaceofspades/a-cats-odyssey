@@ -64,7 +64,7 @@ namespace PlayerController {
     }
 
     public bool HasDetectedHit() => _hitInfo.collider != null;
-    public float GetDistance() => _hitInfo.distance;
+    public float HitDistance() => _hitInfo.distance;
     public Vector3 GetNormal() => _hitInfo.normal;
     public Vector3 GetPosition() => _hitInfo.point;
     public Collider GetCollider() => _hitInfo.collider;

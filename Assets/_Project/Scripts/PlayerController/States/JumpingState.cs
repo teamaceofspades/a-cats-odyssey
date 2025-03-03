@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace PlayerController {
+namespace PlayerController.States {
   public class JumpingState : BaseState {
     public JumpingState(PlayerController player, Animator animator) : base(player, animator) {
     }

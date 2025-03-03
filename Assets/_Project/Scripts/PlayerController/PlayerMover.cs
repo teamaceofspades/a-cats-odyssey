@@ -20,9 +20,10 @@ namespace PlayerController {
 
     private float _sensorOffset = 0f;
     private Transform _tr;
-    private bool _isGrounded;
+    private bool _isGroundedPossible;
     private Vector3 _currentGroundAdjustmentVelocity; // Velocity to adjust player position to maintain ground contact
     private int _currentLayer;
+    private int _layerMask;
 
     [Header("Sensor Settings:")]
     [SerializeField] private bool _useTransformDirection = false;
@@ -57,17 +58,36 @@ namespace PlayerController {
       _backSensor.OnValidate();
     }
 
+    /// <summary>
+    /// Gets the y-intercept from a line in a YZ plane.
+    /// This only works if <c>a.x - b.x = 0</c>.
+    /// If the line is parallel to the Y axis, returns 0.
+    /// </summary>
+    /// <param name="a">Point A.</param>
+    /// <param name="b">Point B.</param>
+    /// <returns>y-intercept</returns>
     private float GetYInterceptForYZ(Vector3 a, Vector3 b) {
-      return a.y - ((a - b).y / (a - b).z) * a.z;
+      Vector3 v = a - b;
+      if (v.z == 0)
+        return 0;
+      return a.y - (v.y / v.z) * a.z;
     }
 
+    public enum FallState {
+      Grounded,
+      FrontFall,
+      BackFall,
+      FreeFall
+    }
+    private FallState _fallState = FallState.Grounded;
+    public FallState SensorFallState { get { return _fallState; } }
     public void CheckGroundAdjustment() {
       if (_currentLayer != gameObject.layer) {
         RecalculateSensorLayerMask();
       }
       _frontSensor.Cast();
       _backSensor.Cast();
-      _isGrounded = _frontSensor.HasDetectedHit() || _backSensor.HasDetectedHit();
+      UpdateFallState();
 
       Vector3 frontAdjustment = CheckSensorGroundAdjustment(_frontSensor);
       Vector3 backAdjustment = CheckSensorGroundAdjustment(_backSensor);
@@ -93,11 +113,57 @@ namespace PlayerController {
         angleRatio = 1f;
       }
 
-      // get height adjustment based on where the adjustedDirection intercepts the local y axis
       _currentGroundAdjustmentVelocity = new Vector3(0,
-          GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin + frontAdjustment * angleRatio, _backSensor.LocalSpaceOrigin + backAdjustment * angleRatio) - _sensorOffset, 0)
-          * _player.MovementSpeed * 10;
+          GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin + frontAdjustment * angleRatio, _backSensor.LocalSpaceOrigin + backAdjustment * angleRatio) - _sensorOffset, 0);
       HandleXAxisRotation(adjustedDirection);
+
+      Vector3 horzontalAdjustment = Vector3.zero;
+      if (_fallState == FallState.FrontFall) {
+        horzontalAdjustment += CalcHorizontalAdjustment(_frontSensor, _backSensor);
+      }
+      else if (_fallState == FallState.BackFall) {
+        horzontalAdjustment += CalcHorizontalAdjustment(_backSensor, _frontSensor);
+      }
+
+      // get height adjustment based on where the adjustedDirection intercepts the local y axis
+      _currentGroundAdjustmentVelocity *= _player.MovementSpeed * 10;
+      _currentGroundAdjustmentVelocity += horzontalAdjustment;
+    }
+
+    private Vector3 CalcHorizontalAdjustment(RaycastSensor fallingSensor, RaycastSensor groundedSensor) {
+      Vector3 result = Vector3.zero;
+      Vector3 startPoint = groundedSensor.WorldSpaceOrigin + _currentGroundAdjustmentVelocity + groundedSensor.GetDirectionVector() * groundedSensor.MinDistance;
+      Vector3 endPoint = fallingSensor.WorldSpaceOrigin + _currentGroundAdjustmentVelocity + fallingSensor.GetDirectionVector() * fallingSensor.TargetDistance;
+      RaycastHit hitInfo;
+      float distance = Vector3.Distance(startPoint, endPoint);
+      Vector3 ray = endPoint - startPoint;
+      if (Physics.Raycast(startPoint, ray, out hitInfo, distance, _layerMask, QueryTriggerInteraction.Ignore)) {
+        ray *= hitInfo.distance / distance;
+        result += Vector3.ProjectOnPlane(ray, groundedSensor.GetDirectionVector());
+      }
+      return result * .9f;
+    }
+
+    private void UpdateFallState() {
+      if (_frontSensor.HasDetectedHit() && _backSensor.HasDetectedHit()) {
+        if (_frontSensor.HitDistance() <= _frontSensor.MaxDistance) {
+          if (_backSensor.HitDistance() <= _backSensor.MaxDistance) {
+            _fallState = FallState.Grounded;
+          }
+          else if (_fallState != FallState.FreeFall) {
+            _fallState = FallState.BackFall;
+          }
+        }
+        else if (_backSensor.HitDistance() <= _backSensor.MaxDistance && _fallState != FallState.FreeFall) {
+          _fallState = FallState.FrontFall;
+        }
+        else {
+          _fallState = FallState.FreeFall;
+        }
+      }
+      else {
+        _fallState = FallState.FreeFall;
+      }
     }
 
     //private Vector3 CalcSlideVector() {
@@ -107,7 +173,7 @@ namespace PlayerController {
     private Vector3 CheckSensorGroundAdjustment(RaycastSensor sensor) {
       if (!sensor.HasDetectedHit())
         return new(0, _player.Gravity * Time.fixedDeltaTime, 0);
-      return (sensor.GetDistance() - sensor.TargetDistance)
+      return (sensor.HitDistance() - sensor.TargetDistance)
         * sensor.GetDirectionVector();
     }
 
@@ -125,7 +191,7 @@ namespace PlayerController {
       //             Time.deltaTime * TurnSpeed;
     }
 
-    public bool IsGrounded() => _isGrounded;
+    public bool IsGrounded() => _isGroundedPossible;
     public Vector3 GetAverageGroundNormal() => (_frontSensor.GetNormal() + _backSensor.GetNormal()) / 2;
     public Vector3 GetFrontGroundNormal() => _frontSensor.GetNormal();
     public Vector3 GetBackGroundNormal() => _backSensor.GetNormal();
@@ -160,38 +226,37 @@ namespace PlayerController {
       // get offset from player transform origin
       _sensorOffset = GetYInterceptForYZ(_frontSensor.LocalSpaceOrigin, _backSensor.LocalSpaceOrigin);
       // get cast length
-      _frontSensor.CastDistance = _frontSensor.TargetDistance - _frontSensor.MinDistance + Vector3.Distance(_frontSensor.LocalSpaceOrigin, _backSensor.LocalSpaceOrigin) - _backSensor.MinDistance;
-      _backSensor.CastDistance = _backSensor.TargetDistance - _backSensor.MinDistance + Vector3.Distance(_backSensor.LocalSpaceOrigin, _frontSensor.LocalSpaceOrigin) - _frontSensor.MinDistance;
+      _frontSensor.CastDistance = _frontSensor.TargetDistance + _backSensor.TargetDistance + Vector3.Distance(_frontSensor.LocalSpaceOrigin, _backSensor.LocalSpaceOrigin) * .6f - _backSensor.MinDistance;
+      _backSensor.CastDistance = _backSensor.TargetDistance + _frontSensor.TargetDistance + Vector3.Distance(_backSensor.LocalSpaceOrigin, _frontSensor.LocalSpaceOrigin) * .6f - _frontSensor.MinDistance;
     }
 
     private void RecalculateSensorLayerMask() {
       int objectLayer = gameObject.layer;
-      int layerMask = Physics.AllLayers;
+      _layerMask = Physics.AllLayers;
 
       for (int i = 0; i < 32; i++) {
         if (Physics.GetIgnoreLayerCollision(objectLayer, i)) {
-          layerMask &= ~(1 << i);
+          _layerMask &= ~(1 << i);
         }
       }
 
       int ignoreRaycastLayer = LayerMask.NameToLayer("Ignore Raycast");
-      layerMask &= ~(1 << ignoreRaycastLayer);
+      _layerMask &= ~(1 << ignoreRaycastLayer);
 
-      _frontSensor.Layermask(layerMask);
-      _backSensor.Layermask(layerMask);
+      _frontSensor.Layermask(_layerMask);
+      _backSensor.Layermask(_layerMask);
       _currentLayer = objectLayer;
     }
 
     private void OnDrawGizmos() {
       if (_isInDebugMode) {
-        SensorSetup();
         // Show Cast Distance
         Gizmos.color = Color.blue;
         Gizmos.DrawLine(transform.TransformPoint(_frontSensor.LocalSpaceOrigin),
           transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.CastDistance);
         Gizmos.DrawLine(transform.TransformPoint(_backSensor.LocalSpaceOrigin),
           transform.TransformPoint(_backSensor.LocalSpaceOrigin) + Vector3.down * _backSensor.CastDistance);
-        // Show Grounded Distance
+        // Show Max Distance
         Gizmos.color = Color.cyan;
         Gizmos.DrawSphere(transform.TransformPoint(_frontSensor.LocalSpaceOrigin) + Vector3.down * _frontSensor.MaxDistance,
           .005f);

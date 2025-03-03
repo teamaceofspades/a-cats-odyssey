@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace PlayerController {
+namespace PlayerController.States {
   public class RisingState : BaseState {
     public RisingState(PlayerController player, Animator animator) : base(player, animator) {
     }
