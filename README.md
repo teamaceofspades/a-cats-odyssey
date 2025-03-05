@@ -1,2 +1,4 @@
 # A Cat's Odyssey
-This is the readme file for the game A Cat's Odyssey. This project is licensed under the terms of CC-BY-SA 4.0
+This is a project to make an exploration game with a bit of puzzle solving and platforming. The main character is a cat that has been lost and is trying to find their home. 
+
+Such verbosity, much wow.
